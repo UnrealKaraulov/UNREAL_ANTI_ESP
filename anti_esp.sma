@@ -156,7 +156,7 @@ public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const rec
 	{
 		orig[2] = 8000.0
 	}
-	rh_emit_sound2(ent, 0, channel, "player/pl_step5.wav", 1.0, attenuation, flags, pitch, 0, orig)
+	rh_emit_sound2(ent, 0, channel, "player/pl_step7.wav", 1.0, attenuation, flags, pitch, 0, orig)
 }
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
