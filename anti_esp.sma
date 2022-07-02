@@ -1,13 +1,10 @@
 #include <amxmodx>
-#include <fakemeta>
 #include <reapi>
-#include <engine>
-#include <hamsandwich>
-#include <xs>
+
 
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL MINI ANTI-ESP", "1.0.-1", "Karaulov")
+	register_plugin("[REAPI] UNREAL MINI ANTI-ESP", "1.0.2", "Karaulov")
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
 }
 
@@ -64,68 +61,58 @@ new originalSounds[][] =
 
 new replacedSounds[][] = 
 {
-	"diegovno/00000001.wav",
-	"diegovno/00000002.wav",
-	"diegovno/00000003.wav",
-	"diegovno/00000004.wav",
-	
-	"diegovno/20000001.wav",
-	"diegovno/20000002.wav",
-	"diegovno/20000003.wav",
-	"diegovno/20000004.wav",
-	
-	"diegovno/30000001.wav",
-	"diegovno/30000002.wav",
-	"diegovno/30000003.wav",
-	"diegovno/30000004.wav",
-	
-	"diegovno/40000001.wav",
-	"diegovno/40000002.wav",
-	"diegovno/40000003.wav",
-	"diegovno/40000004.wav",
-	
-	"diegovno/50000001.wav",
-	"diegovno/50000002.wav",
-	"diegovno/50000003.wav",
-	"diegovno/50000004.wav",
-	
-	"diegovno/60000001.wav",
-	"diegovno/60000002.wav",
-	"diegovno/60000003.wav",
-	"diegovno/60000004.wav",
-	
-	"diegovno/70000001.wav",
-	"diegovno/70000002.wav",
-	"diegovno/70000003.wav",
-	"diegovno/70000004.wav",
-	
-	"diegovno/80000001.wav",
-	"diegovno/80000002.wav",
-	"diegovno/80000003.wav",
-	"diegovno/80000004.wav",
-	"diegovno/80000005.wav",
-	"diegovno/80000006.wav",
-	
-	"diegovno/90000001.wav",
-	"diegovno/90000002.wav",
-	"diegovno/90000003.wav",
-	"diegovno/90000004.wav",
-	
-	"diegovno/11000001.wav",
-	"diegovno/11000002.wav",
-	"diegovno/11000003.wav",
-	"diegovno/11000004.wav",
-	"diegovno/11000005.wav",
-
-	"diegovno/12000001.wav",
-	"diegovno/12000002.wav",
-	"diegovno/12000003.wav",
-	"diegovno/12000004.wav"
+	"die2headshot1/535752545155.wav",
+	"die2headshot1/555453575755.wav",
+	"die2headshot1/565753565655.wav",
+	"die2headshot1/575650555448.wav",
+	"die2headshot1/495556575349.wav",
+	"die2headshot1/485556515557.wav",
+	"die2headshot1/485249505057.wav",
+	"die2headshot1/494848525353.wav",
+	"die2headshot1/495154545050.wav",
+	"die2headshot1/525651515253.wav",
+	"die2headshot1/575548525649.wav",
+	"die2headshot1/565249545552.wav",
+	"die2headshot1/545453515353.wav",
+	"die2headshot1/485550505650.wav",
+	"die2headshot1/525253545757.wav",
+	"die2headshot1/545457535152.wav",
+	"die2headshot1/565449565448.wav",
+	"die2headshot1/515353494853.wav",
+	"die2headshot1/544950555155.wav",
+	"die2headshot1/515456555752.wav",
+	"die2headshot1/545053505749.wav",
+	"die2headshot1/524850485257.wav",
+	"die2headshot1/524948505651.wav",
+	"die2headshot1/555151575756.wav",
+	"die2headshot1/545751505054.wav",
+	"die2headshot1/534954555052.wav",
+	"die2headshot1/524953525448.wav",
+	"die2headshot1/505354505150.wav",
+	"die2headshot1/544856534854.wav",
+	"die2headshot1/485450555348.wav",
+	"die2headshot1/565055545351.wav",
+	"die2headshot1/515456545555.wav",
+	"die2headshot1/565054515451.wav",
+	"die2headshot1/495254485350.wav",
+	"die2headshot1/564848575454.wav",
+	"die2headshot1/495453535452.wav",
+	"die2headshot1/515448515754.wav",
+	"die2headshot1/514850495555.wav",
+	"die2headshot1/485557575349.wav",
+	"die2headshot1/525555535652.wav",
+	"die2headshot1/505148505249.wav",
+	"die2headshot1/495154494848.wav",
+	"die2headshot1/505652575552.wav",
+	"die2headshot1/575551515756.wav",
+	"die2headshot1/545048514857.wav",
+	"die2headshot1/555556534853.wav",
+	"die2headshot1/534853495751.wav"
 }
 
 public plugin_precache()
 {
-	precache_sound("player/pl_step7.wav")
+	precache_sound("player/player/pl_step1.wav")
 	for (new i = 0; i < 47; i++)
 	{
 		precache_sound(replacedSounds[i])
@@ -139,11 +126,12 @@ public plugin_precache()
 public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const recipients, const channel )
 {
 	new Float:orig[3]
-	entity_get_vector(ent, EV_VEC_origin, orig);
+	get_entvar(ent, var_origin, orig);
 	
-	new Float:rnd = random_float(250.0,1000.0)
+	new Float:rnd = random_float(-500.0,500.0)
+	new Float:rnd2 = random_float(250.0,500.0)
 	orig[0] += rnd
-	orig[1] += rnd
+	orig[1] += rnd2
 	if (orig[0] > 8000.0)
 	{
 		orig[0] = 8000.0
@@ -156,7 +144,20 @@ public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const rec
 	{
 		orig[2] = 8000.0
 	}
-	rh_emit_sound2(ent, 0, channel, "player/pl_step7.wav", 1.0, attenuation, flags, pitch, 0, orig)
+	
+	if (orig[0] < -8000.0)
+	{
+		orig[0] = -8000.0
+	}
+	if (orig[1] < -8000.0)
+	{
+		orig[1] = -8000.0
+	}
+	if (orig[2] < -8000.0)
+	{
+		orig[2] = -8000.0
+	}
+	rh_emit_sound2(ent, 0, channel, "player/player/pl_step1.wav", 1.0, attenuation, flags, pitch, 0, orig)
 }
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
@@ -165,11 +166,17 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 	{
 		if (equal(sample,originalSounds[i]))
 		{
-			PlayBadSound(attenuation,pitch,entity,fFlags,recipients,CHAN_VOICE)
+			if (random_num(0,500) > 400)
+				PlayBadSound(attenuation,pitch,entity,fFlags,recipients,CHAN_BODY)
 			SetHookChainArg(4,ATYPE_STRING,replacedSounds[i])
 			SetHookChainArg(6,ATYPE_FLOAT, attenuation * 0.99)
 			break;
 		}
 	}
+	
+	if (channel == CHAN_BODY)
+		SetHookChainArg(3,ATYPE_INTEGER, CHAN_VOICE)
+	else if (channel == CHAN_VOICE)
+		SetHookChainArg(3,ATYPE_INTEGER, CHAN_BODY)
 	return HC_CONTINUE;
 }
