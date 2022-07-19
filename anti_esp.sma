@@ -4,8 +4,9 @@
 
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL MINI ANTI-ESP", "1.0.2", "Karaulov")
+	register_plugin("[REAPI] UNREAL ANTI-ESP", "1.5", "Karaulov")
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
+	create_cvar("unreal_no_esp", "1.5", FCVAR_SERVER | FCVAR_SPONLY);
 }
 
 new originalSounds[][] = 
