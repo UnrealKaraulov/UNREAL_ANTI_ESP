@@ -1,12 +1,11 @@
 #include <amxmodx>
 #include <reapi>
 
-
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL ANTI-ESP", "1.5", "Karaulov")
+	register_plugin("[REAPI] UNREAL ANTI-ESP", "1.6", "Karaulov")
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
-	create_cvar("unreal_no_esp", "1.5", FCVAR_SERVER | FCVAR_SPONLY);
+	create_cvar("unreal_no_esp", "1.6", FCVAR_SERVER | FCVAR_SPONLY);
 }
 
 new originalSounds[][] = 
@@ -113,71 +112,43 @@ new replacedSounds[][] =
 
 public plugin_precache()
 {
-	precache_sound("player/player/pl_step1.wav")
-	for (new i = 0; i < 47; i++)
+	precache_sound("player/player/pl_step1.wav");
+	
+	for (new i = 0; i < sizeof(replacedSounds); i++)
 	{
-		precache_sound(replacedSounds[i])
-	}
-	for (new i = 0; i < 47; i++)
-	{
-		precache_sound(originalSounds[i])
+		precache_sound(replacedSounds[i]);
 	}
 }
 
 public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const recipients, const channel )
 {
-	new Float:orig[3]
-	get_entvar(ent, var_origin, orig);
+	new Float:fOrig[3];
+	get_entvar(ent, var_origin, fOrig);
+	fOrig[0] = floatclamp(fOrig[0] + random_float(-200.0,200.0),-8000.0,8000.0);
+	fOrig[1] = floatclamp(fOrig[1] + random_float(-200.0,200.0),-8000.0,8000.0);
+	fOrig[2] = floatclamp(fOrig[2] + random_float(-30.0,30.0),-8000.0,8000.0);
 	
-	new Float:rnd = random_float(-500.0,500.0)
-	new Float:rnd2 = random_float(250.0,500.0)
-	orig[0] += rnd
-	orig[1] += rnd2
-	if (orig[0] > 8000.0)
-	{
-		orig[0] = 8000.0
-	}
-	if (orig[1] > 8000.0)
-	{
-		orig[1] = 8000.0
-	}
-	if (orig[2] > 8000.0)
-	{
-		orig[2] = 8000.0
-	}
-	
-	if (orig[0] < -8000.0)
-	{
-		orig[0] = -8000.0
-	}
-	if (orig[1] < -8000.0)
-	{
-		orig[1] = -8000.0
-	}
-	if (orig[2] < -8000.0)
-	{
-		orig[2] = -8000.0
-	}
-	rh_emit_sound2(ent, 0, channel, "player/player/pl_step1.wav", 1.0, attenuation, flags, pitch, 0, orig)
+	rh_emit_sound2(ent, 0, channel, "player/player/pl_step1.wav", 1.0, attenuation, flags, pitch, 0, fOrig);
 }
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
-	for (new i = 0; i < sizeof(replacedSounds); i++)
+	for (new i = 0; i < g_iLoadedSounds; i++)
 	{
 		if (equal(sample,originalSounds[i]))
 		{
-			if (random_num(0,500) > 400)
-				PlayBadSound(attenuation,pitch,entity,fFlags,recipients,CHAN_BODY)
-			SetHookChainArg(4,ATYPE_STRING,replacedSounds[i])
-			SetHookChainArg(6,ATYPE_FLOAT, attenuation * 0.99)
+			if (random_num(0,500) > 250)
+				PlayBadSound(attenuation,pitch,entity,fFlags,recipients,CHAN_BODY);
+			SetHookChainArg(4,ATYPE_STRING,replacedSounds[i]);
+			SetHookChainArg(6,ATYPE_FLOAT, attenuation * random_float(0.99,0.999));
 			break;
 		}
 	}
 	
 	if (channel == CHAN_BODY)
-		SetHookChainArg(3,ATYPE_INTEGER, CHAN_VOICE)
+		SetHookChainArg(3,ATYPE_INTEGER, CHAN_VOICE);
 	else if (channel == CHAN_VOICE)
-		SetHookChainArg(3,ATYPE_INTEGER, CHAN_BODY)
+		SetHookChainArg(3,ATYPE_INTEGER, CHAN_BODY);
+		
 	return HC_CONTINUE;
 }
