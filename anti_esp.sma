@@ -133,7 +133,7 @@ public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const rec
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
-	for (new i = 0; i < g_iLoadedSounds; i++)
+	for (new i = 0; i < sizeof(replacedSounds); i++)
 	{
 		if (equal(sample,originalSounds[i]))
 		{
