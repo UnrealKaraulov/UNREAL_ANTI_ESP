@@ -1,17 +1,24 @@
 #include <amxmodx>
 #include <reapi>
 
+#include <fakemeta>
 
+new g_sPLUGIN_NAME[] = "UNREAL ANTI-ESP";
+new g_sPLUGIN_VERSION[] = "2.5";
+new g_sPLUGIN_AUTHOR[] = "Karaulov";
+
+new g_sFakePath[] = "player/pl_step1/pl_step1.wav";
 
 new bool:g_iPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new g_iFakeEnt = 0;
 new g_iEnts[MAX_PLAYERS + 1] = {0,...};
 new g_iChannel = CHAN_WEAPON;
+new Float:g_fFakeTime = 0.0;
 
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL ANTI-ESP", "2.1", "Karaulov");
-	create_cvar("unreal_no_esp", "2.1", FCVAR_SERVER | FCVAR_SPONLY);
+	register_plugin(g_sPLUGIN_NAME, g_sPLUGIN_VERSION, g_sPLUGIN_AUTHOR);
+	create_cvar("unreal_no_esp", g_sPLUGIN_VERSION, FCVAR_SERVER | FCVAR_SPONLY);
 	
 	g_iFakeEnt = rg_create_entity("info_target");
 	if (!g_iFakeEnt)
@@ -21,6 +28,7 @@ public plugin_init()
 	}
 	
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
+	
 	set_task(60.0,"update_channel",1,_,_,"b");
 }
 
@@ -50,6 +58,8 @@ public update_channel()
 {  
 	g_iChannel = getNextChannel(g_iChannel);
 }
+
+new precached_sounds[256] = {0,...};
 
 new originalSounds[][] = 
 {
@@ -153,14 +163,53 @@ new replacedSounds[][] =
 	"die2headshot1/534853495751.wav"
 }
 
+public PrecacheSound(const szSound[])
+{
+	for(new i = 0; i < sizeof(originalSounds); i++)
+	{
+		if( equali(szSound,originalSounds[i]) )
+		{
+			if (precached_sounds[i] == 0)
+			{
+				set_fail_state("No sound/%s found!", replacedSounds[i]);
+				return FMRES_IGNORED;
+			}
+			forward_return(FMV_CELL, precached_sounds[i]);
+			return FMRES_SUPERCEDE;
+		}
+	}
+
+	return FMRES_IGNORED;
+}
+
 public plugin_precache()
 {
-	precache_sound("player/pl_step1/pl_step1.wav");
-	
-	for (new i = 0; i < sizeof(replacedSounds); i++)
+	if (!sound_exists(g_sFakePath))
 	{
-		precache_sound(replacedSounds[i]);
+		set_fail_state("No sound/%s found!",g_sFakePath);
+		return;
 	}
+	
+	precache_sound(g_sFakePath);
+	
+	for(new i = 0; i < sizeof(replacedSounds);i++)
+	{
+		if (!sound_exists(replacedSounds[i]))
+		{
+			set_fail_state("No sound/%s found!", replacedSounds[i]);
+			return;
+		}
+		precached_sounds[i] = precache_sound(replacedSounds[i]);
+	}
+	
+	register_forward(FM_PrecacheSound, "PrecacheSound");
+}
+
+public bool:sound_exists(path[])
+{
+	new fullpath[256];
+	formatex(fullpath,charsmax(fullpath),"sound/%s",path)
+	return file_exists(fullpath,true) > 0;
 }
 
 rg_emit_sound_exept_me(const entity, const recipient, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
@@ -199,15 +248,15 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 	{
 		if (equal(sample,originalSounds[i]))
 		{
-			if (random_num(0,100) > 50)
+			if (get_gametime() - g_fFakeTime > 0.1)
 			{
+				g_fFakeTime = get_gametime();
 				new Float:fFakeOrig[3];
 				fFakeOrig[0] = floatclamp(fOrig[0] + random_float(-500.0,500.0),-8190.0,8190.0);
 				fFakeOrig[1] = floatclamp(fOrig[1] + random_float(-500.0,500.0),-8190.0,8190.0);
 				fFakeOrig[2] = floatclamp(fOrig[2] + random_float(-100.0,100.0),-8190.0,8190.0);
-				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_BODY, "player/pl_step1/pl_step1.wav", float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
 				set_entvar(g_iFakeEnt,var_origin,fFakeOrig);
-				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_WEAPON, "player/pl_step1/pl_step1.wav", float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
+				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_WEAPON, g_sFakePath, float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
 			}
 			rg_emit_sound_exept_me(g_iEnts[entity], entity, g_iChannel, replacedSounds[i], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrig);
 			return HC_BREAK;
