@@ -11,7 +11,7 @@ new g_iChannel = CHAN_WEAPON;
 public plugin_init()
 {
 	register_plugin("[REAPI] UNREAL ANTI-ESP", "2.1", "Karaulov");
-	create_cvar("unreal_no_esp", "1.7", FCVAR_SERVER | FCVAR_SPONLY);
+	create_cvar("unreal_no_esp", "2.1", FCVAR_SERVER | FCVAR_SPONLY);
 	
 	g_iFakeEnt = rg_create_entity("info_target");
 	if (!g_iFakeEnt)
