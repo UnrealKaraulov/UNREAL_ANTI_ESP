@@ -10,8 +10,8 @@ new g_iChannel = CHAN_WEAPON;
 
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL ANTI-ESP", "2.0", "Karaulov");
-	
+	register_plugin("[REAPI] UNREAL ANTI-ESP", "2.1", "Karaulov");
+	create_cvar("unreal_no_esp", "1.7", FCVAR_SERVER | FCVAR_SPONLY);
 	
 	g_iFakeEnt = rg_create_entity("info_target");
 	if (!g_iFakeEnt)
@@ -20,7 +20,6 @@ public plugin_init()
 		return;
 	}
 	
-	create_cvar("unreal_no_esp", "1.7", FCVAR_SERVER | FCVAR_SPONLY);
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
 	set_task(60.0,"update_channel",1,_,_,"b");
 }
@@ -192,7 +191,8 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 	}
 	
 	new Float:fOrig[3];
-	get_entvar(entity, var_origin, fOrig);
+	get_entvar(entity, var_origin, fOrig); 
+	fOrig[2] + 1.0;
 	set_entvar(g_iEnts[entity],var_origin,fOrig);
 	
 	for (new i = 0; i < sizeof(replacedSounds); i++)
