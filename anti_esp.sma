@@ -1,11 +1,55 @@
 #include <amxmodx>
 #include <reapi>
 
+
+
+new bool:g_iPlayerConnected[MAX_PLAYERS + 1] = {false,...};
+new g_iFakeEnt = 0;
+new g_iEnts[MAX_PLAYERS + 1] = {0,...};
+new g_iChannel = CHAN_WEAPON;
+
 public plugin_init()
 {
-	register_plugin("[REAPI] UNREAL ANTI-ESP", "1.7", "Karaulov");
+	register_plugin("[REAPI] UNREAL ANTI-ESP", "2.0", "Karaulov");
+	
+	
+	g_iFakeEnt = rg_create_entity("info_target");
+	if (!g_iFakeEnt)
+	{
+		set_fail_state("Can't create fake entity");
+		return;
+	}
+	
 	create_cvar("unreal_no_esp", "1.7", FCVAR_SERVER | FCVAR_SPONLY);
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
+	set_task(60.0,"update_channel",1,_,_,"b");
+}
+
+public client_putinserver(id)
+{
+	g_iPlayerConnected[id] = true;
+}
+
+public client_disconnected(id)
+{
+	g_iPlayerConnected[id] = false;
+}
+
+public getNextChannel(channel)
+{
+	if (channel == CHAN_WEAPON)
+		return CHAN_VOICE;
+	else if (channel == CHAN_VOICE)
+		return CHAN_ITEM;
+	else if (channel == CHAN_ITEM)
+		return CHAN_BODY;
+	else 
+		return CHAN_WEAPON;
+}
+
+public update_channel()
+{  
+	g_iChannel = getNextChannel(g_iChannel);
 }
 
 new originalSounds[][] = 
@@ -112,7 +156,7 @@ new replacedSounds[][] =
 
 public plugin_precache()
 {
-	precache_sound("player/player/pl_step1.wav");
+	precache_sound("player/pl_step1/pl_step1.wav");
 	
 	for (new i = 0; i < sizeof(replacedSounds); i++)
 	{
@@ -120,35 +164,58 @@ public plugin_precache()
 	}
 }
 
-public PlayBadSound( Float:attenuation, const pitch, ent, const flags, const recipients, const channel )
+rg_emit_sound_exept_me(const entity, const recipient, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
 {
-	new Float:fOrig[3];
-	get_entvar(ent, var_origin, fOrig);
-	fOrig[0] = floatclamp(fOrig[0] + random_float(-200.0,200.0),-8000.0,8000.0);
-	fOrig[1] = floatclamp(fOrig[1] + random_float(-200.0,200.0),-8000.0,8000.0);
-	fOrig[2] = floatclamp(fOrig[2] + random_float(-30.0,30.0),-8000.0,8000.0);
-	
-	rh_emit_sound2(ent, 0, channel, "player/player/pl_step1.wav", 1.0, attenuation, flags, pitch, 0, fOrig);
+	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	{
+		if (g_iPlayerConnected[i] && i != recipient)
+		{
+			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
+		}
+	}
 }
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
+	if (entity > MAX_PLAYERS || channel != CHAN_BODY || !entity || recipients == 0)
+		return HC_CONTINUE;
+	
+	if (!g_iEnts[entity])
+	{
+		g_iEnts[entity] = rg_create_entity( "info_target" );
+		set_entvar(g_iEnts[entity],var_effects,EF_NODRAW);
+		if (!g_iEnts[entity])
+		{
+			set_fail_state("Can't create fake player entity!");
+			return HC_CONTINUE;
+		}
+	}
+	
+	new Float:fOrig[3];
+	get_entvar(entity, var_origin, fOrig);
+	set_entvar(g_iEnts[entity],var_origin,fOrig);
+	
 	for (new i = 0; i < sizeof(replacedSounds); i++)
 	{
 		if (equal(sample,originalSounds[i]))
 		{
-			if (random_num(0,500) > 250)
-				PlayBadSound(attenuation,pitch,entity,fFlags,recipients,CHAN_BODY);
-			SetHookChainArg(4,ATYPE_STRING,replacedSounds[i]);
-			SetHookChainArg(6,ATYPE_FLOAT, attenuation * random_float(0.99,0.999));
-			break;
+			if (random_num(0,100) > 50)
+			{
+				new Float:fFakeOrig[3];
+				fFakeOrig[0] = floatclamp(fOrig[0] + random_float(-500.0,500.0),-8190.0,8190.0);
+				fFakeOrig[1] = floatclamp(fOrig[1] + random_float(-500.0,500.0),-8190.0,8190.0);
+				fFakeOrig[2] = floatclamp(fOrig[2] + random_float(-100.0,100.0),-8190.0,8190.0);
+				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_BODY, "player/pl_step1/pl_step1.wav", float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
+				set_entvar(g_iFakeEnt,var_origin,fFakeOrig);
+				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_WEAPON, "player/pl_step1/pl_step1.wav", float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
+			}
+			rg_emit_sound_exept_me(g_iEnts[entity], entity, g_iChannel, replacedSounds[i], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrig);
+			return HC_BREAK;
 		}
 	}
 	
-	if (channel == CHAN_BODY)
-		SetHookChainArg(3,ATYPE_INTEGER, CHAN_VOICE);
-	else if (channel == CHAN_VOICE)
-		SetHookChainArg(3,ATYPE_INTEGER, CHAN_BODY);
-		
-	return HC_CONTINUE;
+	client_print_color(0,print_team_red,"Origi %s %d %d",sample,entity,recipients);
+	
+	rg_emit_sound_exept_me(g_iEnts[entity], entity, g_iChannel, sample,  float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrig);
+	return HC_BREAK;
 }
