@@ -4,7 +4,7 @@
 #include <fakemeta>
 
 new g_sPLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new g_sPLUGIN_VERSION[] = "2.6";
+new g_sPLUGIN_VERSION[] = "2.7";
 new g_sPLUGIN_AUTHOR[] = "Karaulov";
 
 new g_sFakePath[] = "player/pl_step1/pl_step1.wav";
