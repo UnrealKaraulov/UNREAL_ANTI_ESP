@@ -4,16 +4,19 @@
 #include <fakemeta>
 
 new g_sPLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new g_sPLUGIN_VERSION[] = "2.5";
+new g_sPLUGIN_VERSION[] = "2.6";
 new g_sPLUGIN_AUTHOR[] = "Karaulov";
 
 new g_sFakePath[] = "player/pl_step1/pl_step1.wav";
 
-new bool:g_iPlayerConnected[MAX_PLAYERS + 1] = {false,...};
+new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new g_iFakeEnt = 0;
 new g_iEnts[MAX_PLAYERS + 1] = {0,...};
 new g_iChannel = CHAN_WEAPON;
-new Float:g_fFakeTime = 0.0;
+
+new Float:g_fFakeTime[MAX_PLAYERS + 1] = {0.0,...};
+
+new Float:g_fEntTouchTime[MAX_PLAYERS + 1] = {0.0,...};
 
 public plugin_init()
 {
@@ -28,35 +31,16 @@ public plugin_init()
 	}
 	
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
-	
-	set_task(60.0,"update_channel",1,_,_,"b");
 }
 
 public client_putinserver(id)
 {
-	g_iPlayerConnected[id] = true;
+	g_bPlayerConnected[id] = true;
 }
 
 public client_disconnected(id)
 {
-	g_iPlayerConnected[id] = false;
-}
-
-public getNextChannel(channel)
-{
-	if (channel == CHAN_WEAPON)
-		return CHAN_VOICE;
-	else if (channel == CHAN_VOICE)
-		return CHAN_ITEM;
-	else if (channel == CHAN_ITEM)
-		return CHAN_BODY;
-	else 
-		return CHAN_WEAPON;
-}
-
-public update_channel()
-{  
-	g_iChannel = getNextChannel(g_iChannel);
+	g_bPlayerConnected[id] = false;
 }
 
 new precached_sounds[256] = {0,...};
@@ -216,16 +200,75 @@ rg_emit_sound_exept_me(const entity, const recipient, const channel, const sampl
 {
 	for(new i = 1; i < MAX_PLAYERS + 1; i++)
 	{
-		if (g_iPlayerConnected[i] && i != recipient)
+		if (g_bPlayerConnected[i] && i != recipient)
 		{
 			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
 		}
 	}
 }
 
+rg_emit_sound_all(const entity, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
+{
+	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	{
+		if (g_bPlayerConnected[i])
+		{
+			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
+		}
+	}
+}
+
+emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, const fFlags, const pitch)
+{
+	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	{
+		if (!g_iEnts[i])
+			continue;
+		if (get_gametime() - g_fEntTouchTime[i] > 0.5)
+		{
+			g_fEntTouchTime[i] = get_gametime();
+			set_entvar(g_iEnts[i],var_origin,origin);
+			rh_emit_sound2(g_iEnts[i], 0, CHAN_AUTO, g_sFakePath, volume, attenuation, fFlags, pitch, 0, origin);
+			break;
+		}
+	}
+}
+
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
-	if (entity > MAX_PLAYERS || channel != CHAN_BODY || !entity || recipients == 0)
+	new Float:fOrigin[3];
+	new snd = 0;
+	new bool:foundSnd = false;
+	
+	for (snd = 0; snd < sizeof(replacedSounds); snd++)
+	{
+		if (equal(sample,originalSounds[snd]))
+		{	
+			SetHookChainArg(4,ATYPE_STRING,replacedSounds[snd])
+			
+			if (entity > MAX_PLAYERS || entity < 1)
+			{
+				break;
+			}
+			
+			foundSnd = true;
+			
+			if (!g_iEnts[entity])
+			{
+				break;
+			}
+			
+			g_fEntTouchTime[entity] = get_gametime();
+			
+			get_entvar(entity, var_origin, fOrigin); 
+			fOrigin[2] += 1.1;
+			set_entvar(g_iEnts[entity],var_origin,fOrigin);
+			
+			break;
+		}
+	}
+	
+	if (!foundSnd)
 		return HC_CONTINUE;
 	
 	if (!g_iEnts[entity])
@@ -239,32 +282,20 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 		}
 	}
 	
-	new Float:fOrig[3];
-	get_entvar(entity, var_origin, fOrig); 
-	fOrig[2] + 1.0;
-	set_entvar(g_iEnts[entity],var_origin,fOrig);
+	if(recipients == 0)
+		rg_emit_sound_all(g_iEnts[entity], CHAN_AUTO, replacedSounds[snd], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrigin);
+	else 
+		rg_emit_sound_exept_me(g_iEnts[entity], entity, CHAN_AUTO, replacedSounds[snd], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrigin);
 	
-	for (new i = 0; i < sizeof(replacedSounds); i++)
+	if (get_gametime() - g_fFakeTime[entity] > 0.1)
 	{
-		if (equal(sample,originalSounds[i]))
-		{
-			if (get_gametime() - g_fFakeTime > 0.1)
-			{
-				g_fFakeTime = get_gametime();
-				new Float:fFakeOrig[3];
-				fFakeOrig[0] = floatclamp(fOrig[0] + random_float(-500.0,500.0),-8190.0,8190.0);
-				fFakeOrig[1] = floatclamp(fOrig[1] + random_float(-500.0,500.0),-8190.0,8190.0);
-				fFakeOrig[2] = floatclamp(fOrig[2] + random_float(-100.0,100.0),-8190.0,8190.0);
-				set_entvar(g_iFakeEnt,var_origin,fFakeOrig);
-				rg_emit_sound_exept_me(g_iFakeEnt, 0, CHAN_WEAPON, g_sFakePath, float(volume) / 255.0, attenuation, fFlags, pitch, 0, fFakeOrig);
-			}
-			rg_emit_sound_exept_me(g_iEnts[entity], entity, g_iChannel, replacedSounds[i], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrig);
-			return HC_BREAK;
-		}
+		g_fFakeTime[entity] = get_gametime();
+		
+		fOrigin[0] = floatclamp(fOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
+		fOrigin[1] = floatclamp(fOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
+		fOrigin[2] = floatclamp(fOrigin[2] + random_float(-100.0,100.0),-8190.0,8190.0);
+		emit_fake_sound(fOrigin,float(volume) / 255.0, attenuation,fFlags, pitch);
 	}
 	
-	client_print_color(0,print_team_red,"Origi %s %d %d",sample,entity,recipients);
-	
-	rg_emit_sound_exept_me(g_iEnts[entity], entity, g_iChannel, sample,  float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrig);
 	return HC_BREAK;
 }
