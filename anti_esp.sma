@@ -12,7 +12,6 @@ new g_sFakePath[] = "player/pl_step1/pl_step1.wav";
 new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new g_iFakeEnt = 0;
 new g_iEnts[MAX_PLAYERS + 1] = {0,...};
-new g_iChannel = CHAN_WEAPON;
 
 new Float:g_fFakeTime[MAX_PLAYERS + 1] = {0.0,...};
 
