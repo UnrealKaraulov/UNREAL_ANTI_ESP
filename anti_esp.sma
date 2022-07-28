@@ -13,7 +13,7 @@ new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new g_iFakeEnt = 0;
 new g_iEnts[MAX_PLAYERS + 1] = {0,...};
 
-new Float:g_fFakeTime[MAX_PLAYERS + 1] = {0.0,...};
+new Float:g_fFakeTime = 0.0;
 
 new Float:g_fEntTouchTime[MAX_PLAYERS + 1] = {0.0,...};
 
@@ -286,9 +286,9 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 	else 
 		rg_emit_sound_exept_me(g_iEnts[entity], entity, CHAN_AUTO, replacedSounds[snd], float(volume) / 255.0, attenuation, fFlags, pitch, 0, fOrigin);
 	
-	if (get_gametime() - g_fFakeTime[entity] > 0.1)
+	if (get_gametime() - g_fFakeTime > 0.1)
 	{
-		g_fFakeTime[entity] = get_gametime();
+		g_fFakeTime = get_gametime();
 		
 		fOrigin[0] = floatclamp(fOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
 		fOrigin[1] = floatclamp(fOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
