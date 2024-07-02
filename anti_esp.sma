@@ -6,7 +6,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.0 PRE-ALPHA";
+new PLUGIN_VERSION[] = "3.1 bETA";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define MAX_ENTS_FOR_SOUNDS 15
@@ -20,8 +20,10 @@ new g_sFakePath[64] = "player/pl_step5.wav";
 
 new bool:g_bRepeatChannelMode = false;
 new bool:g_bGiveSomeRandom = false;
-new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bReinstallNewSounds = false;
+new bool:g_ReplaceSoundForAll = false;
+new bool:g_bDebugDumpAllSounds = false;
+new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
@@ -202,22 +204,21 @@ public client_disconnected(id)
 public PrecacheSound(const szSound[])
 {
 	static tmpstr[64];
-	for(new i = 0; i < ArraySize(originalSounds); i++)
+
+	new i = ArrayFindString(originalSounds, szSound);
+	if (i < 0)
 	{
-		ArrayGetString(originalSounds, i, tmpstr, charsmax(tmpstr));
-		if( equali(szSound,tmpstr) )
-		{
-			ArrayGetString(replacedSounds, i, tmpstr, charsmax(tmpstr));
-			if (precached_sounds[i] == 0)
-			{
-				set_fail_state("No sound/%s found!", tmpstr);
-				return FMRES_IGNORED;
-			}
-			forward_return(FMV_CELL, tmpstr);
-			return FMRES_SUPERCEDE;
-		}
+		return FMRES_IGNORED;
 	}
-	return FMRES_IGNORED;
+	
+	ArrayGetString(replacedSounds, i, tmpstr, charsmax(tmpstr));
+	if (precached_sounds[i] == 0)
+	{
+		set_fail_state("No sound/%s found!", tmpstr);
+		return FMRES_IGNORED;
+	}
+	forward_return(FMV_CELL, tmpstr);
+	return FMRES_SUPERCEDE;
 }
 
 public plugin_end()
@@ -241,12 +242,12 @@ public plugin_precache()
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
 	cfg_read_bool("general","reinstall_with_new_sounds", g_bReinstallNewSounds, g_bReinstallNewSounds);
+	cfg_read_bool("general","replace_sound_for_all_ents", g_ReplaceSoundForAll, g_ReplaceSoundForAll);
+	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
 	if (g_bReinstallNewSounds)
 		cfg_write_bool("general","reinstall_with_new_sounds",false);
 	cfg_read_int("sounds","sounds",g_iReplaceSounds,g_iReplaceSounds);
 
-	new tmp_sound[64];
-	new tmp_sound_dest[64];
 
 	if (g_iReplaceSounds == 0 || g_bReinstallNewSounds)
 	{
@@ -258,6 +259,8 @@ public plugin_precache()
 			mkdir("sound/pl_shell", _, true, "GAMECONFIG");
 	}
 
+	new tmp_sound[64];
+	new tmp_sound_dest[64];
 	new tmp_arg[64];
 	for(new i = 0; i < g_iReplaceSounds; i++)
 	{
@@ -316,8 +319,6 @@ public plugin_precache()
 		return;
 	}
 	
-	precache_sound(g_sFakePath);
-	
 	for(new i = 0; i < ArraySize(replacedSounds);i++)
 	{
 		ArrayGetString(replacedSounds, i, tmp_arg, charsmax(tmp_arg));
@@ -328,15 +329,24 @@ public plugin_precache()
 		}
 		precached_sounds[i] = precache_sound(tmp_arg);
 	}
+
+	precache_sound(g_sFakePath);
+	register_forward(FM_PrecacheSound, "PrecacheSound");
 	
-	log_amx("anti_esp loaded");
+	log_amx("unreal_anti_esp loaded");
 	log_amx("Settings:");
 	log_amx("  g_sSoundClassname = %s", g_sSoundClassname);
 	log_amx("  g_sFakePath = %s", g_sFakePath);
 	log_amx("  g_bRepeatChannelMode = %i", g_bRepeatChannelMode);
 	log_amx("  g_bGiveSomeRandom = %i", g_bGiveSomeRandom);
 	log_amx("  g_iReplaceSounds = %i", g_iReplaceSounds);
-	register_forward(FM_PrecacheSound, "PrecacheSound");
+	log_amx("  g_ReplaceSoundForAll = %i", g_ReplaceSoundForAll);
+	log_amx("  g_bDebugDumpAllSounds = %i", g_bDebugDumpAllSounds);
+
+	if (g_bDebugDumpAllSounds)
+	{
+		log_amx("Warning! Dumping all sounds!");
+	}
 }
 
 rg_emit_sound_exept_me(const entity, const recipient, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
@@ -351,7 +361,7 @@ rg_emit_sound_exept_me(const entity, const recipient, const channel, const sampl
 			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
 		}
 	}
-	new Float:vOrigin_fake[3];
+	static Float:vOrigin_fake[3];
 	vOrigin_fake[0] = random_float(-8190.0,8190.0);
 	vOrigin_fake[1] = random_float(-8190.0,8190.0);
 	vOrigin_fake[2] = random_float(-200.0,200.0);
@@ -370,7 +380,7 @@ rg_emit_sound_all(const entity, const channel, const sample[], Float:vol = VOL_N
 			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
 		}
 	}
-	new Float:vOrigin_fake[3];
+	static Float:vOrigin_fake[3];
 	vOrigin_fake[0] = random_float(-8190.0,8190.0);
 	vOrigin_fake[1] = random_float(-8190.0,8190.0);
 	vOrigin_fake[2] = random_float(-200.0,200.0);
@@ -391,45 +401,97 @@ emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, const fFlags, 
 
 public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
-	new snd = 0;
+	new tmp_sample[64] = {EOS,...};
+
+	if (g_bDebugDumpAllSounds)
+	{
+		static tmp_section_name[256];
+
+		static tmp_debug[256];
+
+		get_mapname(tmp_debug,charsmax(tmp_debug));
+		formatex(tmp_section_name,charsmax(tmp_section_name),"DEBUG_MAP_%s", tmp_debug);
+
+		static tmp_debug2[256];
+		
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_channel", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%i", channel);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_sample", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%s", sample);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_volume", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%f", volume / 255.0);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_attenuation", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%f", attenuation);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_flags", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%u", fFlags);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_pitch", entity);
+		formatex(tmp_debug2,charsmax(tmp_debug2),"%i", pitch);
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_name", entity);
+		get_entvar(entity,var_classname,tmp_debug2,charsmax(tmp_debug2));
+		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+
+		
+		if (entity > MAX_PLAYERS || entity < 1)
+		{
+			formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_info", entity);
+			formatex(tmp_debug2,charsmax(tmp_debug2),"replace_sound_for_all_ents option is required!", entity);
+			cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
+		}
+	}
 
 	if (entity > MAX_PLAYERS || entity < 1)
 	{
+		if (g_ReplaceSoundForAll)
+		{
+			new snd = ArrayFindString(originalSounds, sample);
+			if (snd >= 0)
+			{
+				ArrayGetString(replacedSounds, snd, tmp_sample, charsmax(tmp_sample));
+				if (strlen(tmp_sample) > 0)
+				{
+					SetHookChainArg(4,ATYPE_STRING,tmp_sample)
+				}
+			}
+		}
 		return HC_CONTINUE;
 	}
 	
 	new Float:vOrigin[3];
-	new Float:vOrigin_fake[3];
 	get_entvar(entity,var_origin, vOrigin);
 
 	if (get_gametime() - g_fFakeTime > 0.1)
 	{
 		g_fFakeTime = get_gametime();
 		
+		static Float:vOrigin_fake[3];
 		vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
 		vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
 		vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(-100.0,100.0),-8190.0,8190.0);
 		emit_fake_sound(vOrigin_fake,float(volume) / 255.0, attenuation,fFlags, pitch,channel);
 	}
 	
-	new tmp_sample[64];
-	// todo: speedup with hash?
-	for (snd = 0; snd < ArraySize(originalSounds); snd++)
-	{
-		ArrayGetString(originalSounds, snd, tmp_sample, charsmax(tmp_sample));
-		if (equal(sample,tmp_sample))
-		{	
-			ArrayGetString(replacedSounds, snd, tmp_sample, charsmax(tmp_sample));
-			SetHookChainArg(4,ATYPE_STRING,tmp_sample)
-			break;
-		}
-		tmp_sample[0] = EOS;
-	}
-	
 	new pack_ent_chan = fill_entity_and_channel(entity, channel);
 	if (pack_ent_chan == 0)
 	{
 		return HC_CONTINUE;
+	}
+
+	new snd = ArrayFindString(originalSounds, sample);
+	if (snd >= 0)
+	{
+		ArrayGetString(replacedSounds, snd, tmp_sample, charsmax(tmp_sample));
 	}
 
 	new new_chan = UnpackChannel(pack_ent_chan);
