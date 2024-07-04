@@ -1,16 +1,16 @@
 #include <amxmodx>
 #include <reapi>
 #include <fakemeta>
+#include <xs>
+
 #include <easy_cfg>
+
 
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.1 bETA";
+new PLUGIN_VERSION[] = "3.2 UNTESTED";
 new PLUGIN_AUTHOR[] = "Karaulov";
-
-#define MAX_ENTS_FOR_SOUNDS 15
-new g_iEnts[MAX_ENTS_FOR_SOUNDS] = {0,...};
 
 #define MAX_CHANNEL CHAN_STREAM
 new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
@@ -18,21 +18,37 @@ new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
 new g_sSoundClassname[64] = "info_target";
 new g_sFakePath[64] = "player/pl_step5.wav";
 
+new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
+new bool:g_bPlayerBot[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bRepeatChannelMode = false;
 new bool:g_bGiveSomeRandom = false;
 new bool:g_bReinstallNewSounds = false;
-new bool:g_ReplaceSoundForAll = false;
+new bool:g_bReplaceSoundForAll = false;
+new bool:g_bAntiespForBots = true;
+new bool:g_bCrackOldEspBox = true;
+new bool:g_bVolumeRangeBased = true;
+new bool:g_bUseOriginalSounds = false;
 new bool:g_bDebugDumpAllSounds = false;
-new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
 new g_iFakeEnt = 0;
-
 new g_iReplaceSounds = 0;
+new g_iMaxEntsForSounds = 13;
+
+/* from engine constants */
+#define SOUND_NOMINAL_CLIP_DIST 1000.0
+
+new Float:g_fMaxSoundDist = SOUND_NOMINAL_CLIP_DIST;
+new Float:g_fRangeBasedDist = 100.0;
+new Float:g_fMinSoundVolume = 0.019;
 
 new Float:g_fFakeTime = 0.0;
 
+new Array:g_aPrecachedSounds;
+new Array:g_aOriginalSounds;
+new Array:g_aReplacedSounds;
+new Array:g_aSoundEnts;
 
 public plugin_init()
 {
@@ -47,15 +63,19 @@ public plugin_init()
 	}
 	set_entvar(g_iFakeEnt,var_classname, g_sSoundClassname);
 
-	g_iEnts[0] = rg_create_entity("info_target");
-	if (!g_iEnts[0])
+	new iFirstSndEnt = rg_create_entity("info_target");
+	if (!iFirstSndEnt)
 	{
 		set_fail_state("Can't create sound entity");
 		return;
 	}
-	set_entvar(g_iEnts[0],var_classname, g_sSoundClassname);
 
-	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook",0);
+	ArrayPushCell(g_aSoundEnts, iFirstSndEnt);
+	set_entvar(iFirstSndEnt,var_classname, g_sSoundClassname);
+
+	RegisterHookChain(RG_CBasePlayer_Spawn, "CBasePlayer_Spawn_hook", true);
+	
+	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook", false);
 
 	for (new i = 0; i <= MAX_PLAYERS; i++) 
 	{
@@ -84,22 +104,24 @@ public fill_entity_and_channel(id, channel)
 	{
 		g_iCurChannel = 1;
 		g_iCurEnt++;
-		if (g_iCurEnt < MAX_ENTS_FOR_SOUNDS)
+		if (g_iCurEnt < g_iMaxEntsForSounds)
 		{
-			g_iEnts[g_iCurEnt] = rg_create_entity("info_target");
-			if (!g_iEnts[g_iCurEnt])
+			new iSndEnt = rg_create_entity("info_target");
+			if (!iSndEnt)
 			{
 				set_fail_state("Can't create sound entity");
 				return 0;
 			}
-			set_entvar(g_iEnts[g_iCurEnt],var_classname, g_sSoundClassname);
+			
+			ArrayPushCell(g_aSoundEnts, iSndEnt);
+			set_entvar(iSndEnt,var_classname, g_sSoundClassname);
 		}
 		else 
 		{
 			if (one_time_channel_warn && !g_bRepeatChannelMode)
 			{
 				one_time_channel_warn = false;
-				log_amx("Too many sound entities, please increase MAX_ENTS_FOR_SOUNDS in anti_esp.sma\n");
+				log_amx("Too many sound entities, please increase g_iMaxEntsForSounds in anti_esp.cfg[this can fix not hearing sounds]\n");
 			}
 			g_iCurEnt = 0;
 		}
@@ -109,110 +131,120 @@ public fill_entity_and_channel(id, channel)
 	return g_iChannelReplacement[id][channel];
 }
 
-new precached_sounds[512] = {0,...};
-
-new Array:originalSounds;
-new Array:replacedSounds;
-
 public InitDefaultSoundArray()
 {
-	ArrayPushString(originalSounds, "player/pl_step1.wav");
-	ArrayPushString(originalSounds, "player/pl_step2.wav");
-	ArrayPushString(originalSounds, "player/pl_step3.wav");
-	ArrayPushString(originalSounds, "player/pl_step4.wav");
-	ArrayPushString(originalSounds, "player/pl_dirt1.wav");
-	ArrayPushString(originalSounds, "player/pl_dirt2.wav");
-	ArrayPushString(originalSounds, "player/pl_dirt3.wav");
-	ArrayPushString(originalSounds, "player/pl_dirt4.wav");
-	ArrayPushString(originalSounds, "player/pl_duct1.wav");
-	ArrayPushString(originalSounds, "player/pl_duct2.wav");
-	ArrayPushString(originalSounds, "player/pl_duct3.wav");
-	ArrayPushString(originalSounds, "player/pl_duct4.wav");
-	ArrayPushString(originalSounds, "player/pl_grate1.wav");
-	ArrayPushString(originalSounds, "player/pl_grate2.wav");
-	ArrayPushString(originalSounds, "player/pl_grate3.wav");
-	ArrayPushString(originalSounds, "player/pl_grate4.wav");
-	ArrayPushString(originalSounds, "player/pl_metal1.wav");
-	ArrayPushString(originalSounds, "player/pl_metal2.wav");
-	ArrayPushString(originalSounds, "player/pl_metal3.wav");
-	ArrayPushString(originalSounds, "player/pl_metal4.wav");
-	ArrayPushString(originalSounds, "player/pl_ladder1.wav");
-	ArrayPushString(originalSounds, "player/pl_ladder2.wav");
-	ArrayPushString(originalSounds, "player/pl_ladder3.wav");
-	ArrayPushString(originalSounds, "player/pl_ladder4.wav");
-	ArrayPushString(originalSounds, "player/pl_slosh1.wav");
-	ArrayPushString(originalSounds, "player/pl_slosh2.wav");
-	ArrayPushString(originalSounds, "player/pl_slosh3.wav");
-	ArrayPushString(originalSounds, "player/pl_slosh4.wav");
-	ArrayPushString(originalSounds, "player/pl_snow1.wav");
-	ArrayPushString(originalSounds, "player/pl_snow2.wav");
-	ArrayPushString(originalSounds, "player/pl_snow3.wav");
-	ArrayPushString(originalSounds, "player/pl_snow4.wav");
-	ArrayPushString(originalSounds, "player/pl_snow5.wav");
-	ArrayPushString(originalSounds, "player/pl_snow6.wav");
-	ArrayPushString(originalSounds, "player/pl_swim1.wav");
-	ArrayPushString(originalSounds, "player/pl_swim2.wav");
-	ArrayPushString(originalSounds, "player/pl_swim3.wav");
-	ArrayPushString(originalSounds, "player/pl_swim4.wav");
-	ArrayPushString(originalSounds, "player/pl_tile1.wav");
-	ArrayPushString(originalSounds, "player/pl_tile2.wav");
-	ArrayPushString(originalSounds, "player/pl_tile3.wav");
-	ArrayPushString(originalSounds, "player/pl_tile4.wav");
-	ArrayPushString(originalSounds, "player/pl_tile5.wav");
-	ArrayPushString(originalSounds, "player/pl_wade1.wav");
-	ArrayPushString(originalSounds, "player/pl_wade2.wav");
-	ArrayPushString(originalSounds, "player/pl_wade3.wav");
-	ArrayPushString(originalSounds, "player/pl_wade4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_step1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_step2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_step3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_step4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_dirt1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_dirt2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_dirt3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_dirt4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_duct1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_duct2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_duct3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_duct4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_grate1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_grate2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_grate3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_grate4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_metal1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_metal2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_metal3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_metal4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_ladder1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_ladder2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_ladder3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_ladder4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_slosh1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_slosh2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_slosh3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_slosh4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow5.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_snow6.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_swim1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_swim2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_swim3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_swim4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_tile1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_tile2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_tile3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_tile4.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_tile5.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_wade1.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_wade2.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_wade3.wav");
+	ArrayPushString(g_aOriginalSounds, "player/pl_wade4.wav");
 
 	new rnd_str[64];
 
 	if (g_bReinstallNewSounds)
 	{
-		for(new i = 0; i < ArraySize(originalSounds); i++)
+		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 		{
 			RandomSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
-			ArrayPushString(replacedSounds, rnd_str);
+			ArrayPushString(g_aReplacedSounds, rnd_str);
 		}
 	}
 	else 
 	{
-		for(new i = 0; i < ArraySize(originalSounds); i++)
+		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 		{
 			StandSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
-			ArrayPushString(replacedSounds, rnd_str);
+			ArrayPushString(g_aReplacedSounds, rnd_str);
 		}
 	}
 }
 
 public client_putinserver(id)
 {
-	if (!is_user_bot(id) && !is_user_hltv(id))
+	new bool:isBot = is_user_bot(id) > 0;
+	new bool:isHltv = is_user_hltv(id) > 0;
+
+	if (isBot || isHltv)
 	{
-		g_bPlayerConnected[id] = true;
+		g_bPlayerConnected[id] = false;
 	}
 	else 
 	{
-		g_bPlayerConnected[id] = false;
+		g_bPlayerConnected[id] = true;
+	}
+
+	g_bPlayerBot[id] = isBot;
+	
+	if (task_exists(id))
+	{
+		remove_task(id);
 	}
 }
 
 public client_disconnected(id)
 {
 	g_bPlayerConnected[id] = false;
+	
+	if (task_exists(id))
+	{
+		remove_task(id);
+	}
 }
 
 public PrecacheSound(const szSound[])
 {
 	static tmpstr[64];
 
-	new i = ArrayFindString(originalSounds, szSound);
+	new i = ArrayFindString(g_aOriginalSounds, szSound);
 	if (i < 0)
 	{
 		return FMRES_IGNORED;
 	}
 	
-	ArrayGetString(replacedSounds, i, tmpstr, charsmax(tmpstr));
-	if (precached_sounds[i] == 0)
+	ArrayGetString(g_aReplacedSounds, i, tmpstr, charsmax(tmpstr));
+	if (ArrayGetCell(g_aPrecachedSounds,i) <= 0)
 	{
 		set_fail_state("No sound/%s found!", tmpstr);
 		return FMRES_IGNORED;
@@ -223,8 +255,10 @@ public PrecacheSound(const szSound[])
 
 public plugin_end()
 {
-	ArrayDestroy(originalSounds);
-	ArrayDestroy(replacedSounds);
+	ArrayDestroy(g_aOriginalSounds);
+	ArrayDestroy(g_aReplacedSounds);
+	ArrayDestroy(g_aPrecachedSounds);
+	ArrayDestroy(g_aSoundEnts);
 }
 
 public plugin_precache()
@@ -234,75 +268,95 @@ public plugin_precache()
 	RandomString(g_sSoundClassname, 15);
 	g_sSoundClassname[5] = '_';
 
-	originalSounds = ArrayCreate(64);
-	replacedSounds = ArrayCreate(64);
+	g_aOriginalSounds = ArrayCreate(64);
+	g_aReplacedSounds = ArrayCreate(64);
+	g_aPrecachedSounds = ArrayCreate();
+	g_aSoundEnts = ArrayCreate();
 
 	cfg_read_str("general","fake_path",g_sFakePath,g_sFakePath,charsmax(g_sFakePath));
 	cfg_read_str("general","ent_classname",g_sSoundClassname,g_sSoundClassname,charsmax(g_sSoundClassname));
+	cfg_read_int("general","max_ents_for_sounds", g_iMaxEntsForSounds, g_iMaxEntsForSounds);
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
 	cfg_read_bool("general","reinstall_with_new_sounds", g_bReinstallNewSounds, g_bReinstallNewSounds);
-	cfg_read_bool("general","replace_sound_for_all_ents", g_ReplaceSoundForAll, g_ReplaceSoundForAll);
+	cfg_read_bool("general","crack_old_esp_box", g_bCrackOldEspBox, g_bCrackOldEspBox);
+	cfg_read_bool("general","volume_range_based", g_bVolumeRangeBased, g_bVolumeRangeBased);
+	cfg_read_flt("general","volume_range_dist", g_fRangeBasedDist, g_fRangeBasedDist);
+	cfg_read_flt("general","cut_off_sound_dist", g_fMaxSoundDist * 1.5, g_fMaxSoundDist);
+	cfg_read_flt("general","cut_off_sound_vol", g_fMinSoundVolume, g_fMinSoundVolume);
+	cfg_read_bool("general","replace_sound_for_all_ents", g_bReplaceSoundForAll, g_bReplaceSoundForAll);
+	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
+
+	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
-	if (g_bReinstallNewSounds)
-		cfg_write_bool("general","reinstall_with_new_sounds",false);
-	cfg_read_int("sounds","sounds",g_iReplaceSounds,g_iReplaceSounds);
-
-
-	if (g_iReplaceSounds == 0 || g_bReinstallNewSounds)
-	{
-		InitDefaultSoundArray();
-		g_iReplaceSounds = ArraySize(originalSounds);
-		cfg_write_int("sounds","sounds",g_iReplaceSounds);
-		
-		if (!dir_exists("sound/pl_shell",true))
-			mkdir("sound/pl_shell", _, true, "GAMECONFIG");
-	}
 
 	new tmp_sound[64];
-	new tmp_sound_dest[64];
 	new tmp_arg[64];
-	for(new i = 0; i < g_iReplaceSounds; i++)
+
+	if (!g_bUseOriginalSounds)
 	{
-		if (i < ArraySize(originalSounds))
-		{
-			ArrayGetString(originalSounds, i, tmp_sound, charsmax(tmp_sound));
-			ArrayGetString(replacedSounds, i, tmp_sound_dest, charsmax(tmp_sound_dest));
+		if (g_bReinstallNewSounds)
+			cfg_write_bool("general","reinstall_with_new_sounds",false);
+		cfg_read_int("sounds","sounds",g_iReplaceSounds,g_iReplaceSounds);
 
-			formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_default", i + 1);
-			cfg_write_str("sounds",tmp_arg,tmp_sound);
-			formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_replace", i + 1);
-			cfg_write_str("sounds",tmp_arg,tmp_sound_dest);
-		}
-		else 
-		{
-			formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_default", i + 1);
-			cfg_read_str("sounds",tmp_arg,tmp_sound,tmp_sound,charsmax(tmp_sound));
-			formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_replace", i + 1);
-			cfg_read_str("sounds",tmp_arg,tmp_sound_dest,tmp_sound_dest,charsmax(tmp_sound_dest));
-		}
-		ArrayPushString(originalSounds,tmp_sound);
-		ArrayPushString(replacedSounds,tmp_sound_dest);
 
-		if (!sound_exists(tmp_sound_dest))
+		if (g_iReplaceSounds == 0 || g_bReinstallNewSounds)
 		{
-			formatex(tmp_arg,charsmax(tmp_arg),"sound/%s",tmp_sound_dest);
-
-			trim_to_dir(tmp_arg);
-			if (!dir_exists(tmp_arg, true))
-			{
-				mkdir(tmp_arg, _, true, "GAMECONFIG");
-			}
+			InitDefaultSoundArray();
+			g_iReplaceSounds = ArraySize(g_aOriginalSounds);
+			cfg_write_int("sounds","sounds",g_iReplaceSounds);
 			
-			formatex(tmp_arg,charsmax(tmp_arg),"sound/%s",tmp_sound);
-			formatex(tmp_sound,charsmax(tmp_sound),"sound/%s",tmp_sound_dest);
+			if (!dir_exists("sound/pl_shell",true))
+				mkdir("sound/pl_shell", _, true, "GAMECONFIG");
+		}
 
-			MoveSoundWithRandomTail(tmp_arg,tmp_sound);
+		new tmp_sound_dest[64];
+		for(new i = 0; i < g_iReplaceSounds; i++)
+		{
+			if (i < ArraySize(g_aOriginalSounds))
+			{
+				ArrayGetString(g_aOriginalSounds, i, tmp_sound, charsmax(tmp_sound));
+				ArrayGetString(g_aReplacedSounds, i, tmp_sound_dest, charsmax(tmp_sound_dest));
+
+				formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_default", i + 1);
+				cfg_write_str("sounds",tmp_arg,tmp_sound);
+				formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_replace", i + 1);
+				cfg_write_str("sounds",tmp_arg,tmp_sound_dest);
+			}
+			else 
+			{
+				formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_default", i + 1);
+				cfg_read_str("sounds",tmp_arg,tmp_sound,tmp_sound,charsmax(tmp_sound));
+				formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_replace", i + 1);
+				cfg_read_str("sounds",tmp_arg,tmp_sound_dest,tmp_sound_dest,charsmax(tmp_sound_dest));
+			}
+			ArrayPushString(g_aOriginalSounds,tmp_sound);
+			ArrayPushString(g_aReplacedSounds,tmp_sound_dest);
 
 			if (!sound_exists(tmp_sound_dest))
 			{
-				set_fail_state("Fail while move %s to %s",tmp_sound,tmp_sound_dest);
-				return;
+				formatex(tmp_arg,charsmax(tmp_arg),"sound/%s",tmp_sound_dest);
+
+				trim_to_dir(tmp_arg);
+				if (!dir_exists(tmp_arg, true))
+				{
+					if (mkdir(tmp_arg, _, true, "GAMECONFIG") < 0)
+					{
+						set_fail_state("Fail while create %s dir",tmp_arg);
+						return;
+					}
+				}
+				
+				formatex(tmp_arg,charsmax(tmp_arg),"sound/%s",tmp_sound);
+				formatex(tmp_sound,charsmax(tmp_sound),"sound/%s",tmp_sound_dest);
+
+				MoveSoundWithRandomTail(tmp_arg,tmp_sound);
+
+				if (!sound_exists(tmp_sound_dest))
+				{
+					set_fail_state("Fail while move %s to %s",tmp_sound,tmp_sound_dest);
+					return;
+				}
 			}
 		}
 	}
@@ -319,15 +373,15 @@ public plugin_precache()
 		return;
 	}
 	
-	for(new i = 0; i < ArraySize(replacedSounds);i++)
+	for(new i = 0; i < ArraySize(g_aReplacedSounds);i++)
 	{
-		ArrayGetString(replacedSounds, i, tmp_arg, charsmax(tmp_arg));
+		ArrayGetString(g_aReplacedSounds, i, tmp_arg, charsmax(tmp_arg));
 		if (!sound_exists(tmp_arg))
 		{
 			set_fail_state("No sound/%s found!", tmp_arg);
 			return;
 		}
-		precached_sounds[i] = precache_sound(tmp_arg);
+		ArrayPushCell(g_aPrecachedSounds, precache_sound(tmp_arg));
 	}
 
 	precache_sound(g_sFakePath);
@@ -340,54 +394,93 @@ public plugin_precache()
 	log_amx("  g_bRepeatChannelMode = %i", g_bRepeatChannelMode);
 	log_amx("  g_bGiveSomeRandom = %i", g_bGiveSomeRandom);
 	log_amx("  g_iReplaceSounds = %i", g_iReplaceSounds);
-	log_amx("  g_ReplaceSoundForAll = %i", g_ReplaceSoundForAll);
+	log_amx("  g_bCrackOldEspBox = %i", g_bCrackOldEspBox);
+	log_amx("  g_bReplaceSoundForAll = %i", g_bReplaceSoundForAll);
 	log_amx("  g_bDebugDumpAllSounds = %i", g_bDebugDumpAllSounds);
+	log_amx("  g_bAntiespForBots = %i", g_bAntiespForBots);
+	log_amx("  g_bVolumeRangeBased = %i", g_bVolumeRangeBased);
+	log_amx("  g_fRangeBasedDist = %f", g_fRangeBasedDist);
+	log_amx("  g_fMaxSoundDist = %f", g_fMaxSoundDist);
+	log_amx("  g_fMinSoundVolume = %f", g_fMinSoundVolume);
+	log_amx("  g_bUseOriginalSounds = %i", g_bUseOriginalSounds);
 
 	if (g_bDebugDumpAllSounds)
 	{
 		log_amx("Warning! Dumping all sounds!");
 	}
+
+	if (g_bUseOriginalSounds)
+	{
+		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
+	}
 }
 
-rg_emit_sound_exept_me(const entity, const recipient, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
+rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false)
 {
-	set_entvar(entity,var_origin,origin);
-	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	static Float:vecListener[3];
+	
+	for(new iListener = 1; iListener < MAX_PLAYERS + 1; iListener++)
 	{
-		if (g_bPlayerConnected[i] && i != recipient)
+		if (g_bPlayerConnected[iListener] && (bForAll || iListener != recipient))
 		{
+			get_entvar(iListener, var_origin, vecListener);
+
+			new Float:direction[3];
+			xs_vec_sub(vecSource, vecListener, direction);
+
+			new Float:originalDistance = xs_vec_len(direction);
+			xs_vec_normalize(direction, direction);
+
+			if (originalDistance > g_fMaxSoundDist)
+				continue;
+
+			new Float:fSomeRandom = 0.0;
+			if (g_bGiveSomeRandom)
+			{
+				fSomeRandom = random_float(0.0, g_fRangeBasedDist * 1.5) - g_fRangeBasedDist / 3.0;
+			}
+
+			if (!g_bVolumeRangeBased || originalDistance < g_fRangeBasedDist + fSomeRandom)
+			{
+				set_entvar(entity, var_origin, vecSource);
+				if (channel == CHAN_STREAM)
+					rh_emit_sound2(entity, iListener, channel, sample, vol, attn, SND_STOP, pitch, emitFlags, vecSource);
+				rh_emit_sound2(entity, iListener, channel, sample, vol, attn, flags, pitch, emitFlags, vecSource);
+				continue;
+			}
+			
+			/* thanks s1lent for distance based sound volume calculation as in real client engine */
+			new Float:vecFakeSound[3];
+
+			xs_vec_mul_scalar(direction, g_fRangeBasedDist + fSomeRandom, vecFakeSound);
+			xs_vec_add(vecListener, vecFakeSound, vecFakeSound);
+			xs_vec_sub(vecFakeSound, vecListener, direction);
+
+			new Float:dist_mult = attn / SOUND_NOMINAL_CLIP_DIST;
+			new Float:flvol = vol;
+			new Float:new_vol = flvol * (1.0 - (originalDistance * dist_mult)) / (1.0 - (xs_vec_len(direction) * dist_mult));
+
+			/* bypass errors */
+			if (new_vol > flvol)
+				new_vol = flvol;
+			if (new_vol <= 0)
+				continue;
+			
+			set_entvar(entity, var_origin, vecFakeSound);
 			if (channel == CHAN_STREAM)
-				rh_emit_sound2(entity, i, channel, sample, vol, attn, SND_STOP, pitch, emitFlags, origin);
-			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
+				rh_emit_sound2(entity, iListener, channel, sample, new_vol, attn, SND_STOP, pitch, emitFlags, vecFakeSound);
+			rh_emit_sound2(entity, iListener, channel, sample, new_vol, attn, flags, pitch, emitFlags, vecFakeSound);
 		}
 	}
-	static Float:vOrigin_fake[3];
-	vOrigin_fake[0] = random_float(-8190.0,8190.0);
-	vOrigin_fake[1] = random_float(-8190.0,8190.0);
-	vOrigin_fake[2] = random_float(-200.0,200.0);
-	set_entvar(entity,var_origin,vOrigin_fake);
+
+	// hide fake ents coords
+	vecListener[0] = random_float(-8190.0,8190.0);
+	vecListener[1] = random_float(-8190.0,8190.0);
+	vecListener[2] = random_float(-200.0,200.0);
+	set_entvar(entity,var_origin,vecListener);
 }
 
-rg_emit_sound_all(const entity, const channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, const flags = 0, const pitch = PITCH_NORM, emitFlags = 0, const Float:origin[3] = {0.0,0.0,0.0})
-{
-	set_entvar(entity,var_origin,origin);
-	for(new i = 1; i < MAX_PLAYERS + 1; i++)
-	{
-		if (g_bPlayerConnected[i])
-		{
-			if (channel == CHAN_STREAM)
-				rh_emit_sound2(entity, i, channel, sample, vol, attn, SND_STOP, pitch, emitFlags, origin);
-			rh_emit_sound2(entity, i, channel, sample, vol, attn, flags, pitch, emitFlags, origin);
-		}
-	}
-	static Float:vOrigin_fake[3];
-	vOrigin_fake[0] = random_float(-8190.0,8190.0);
-	vOrigin_fake[1] = random_float(-8190.0,8190.0);
-	vOrigin_fake[2] = random_float(-200.0,200.0);
-	set_entvar(entity,var_origin,vOrigin_fake);
-}
-
-emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, const fFlags, const pitch, const channel)
+emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel)
 {
 	set_entvar(g_iFakeEnt,var_origin,origin);
 	for(new i = 1; i < MAX_PLAYERS + 1; i++)
@@ -453,18 +546,22 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 
 	if (entity > MAX_PLAYERS || entity < 1)
 	{
-		if (g_ReplaceSoundForAll)
+		if (g_bReplaceSoundForAll)
 		{
-			new snd = ArrayFindString(originalSounds, sample);
+			new snd = ArrayFindString(g_aOriginalSounds, sample);
 			if (snd >= 0)
 			{
-				ArrayGetString(replacedSounds, snd, tmp_sample, charsmax(tmp_sample));
+				ArrayGetString(g_aReplacedSounds, snd, tmp_sample, charsmax(tmp_sample));
 				if (strlen(tmp_sample) > 0)
 				{
 					SetHookChainArg(4,ATYPE_STRING,tmp_sample)
 				}
 			}
 		}
+		return HC_CONTINUE;
+	}
+	else if (g_bPlayerBot[entity] && !g_bAntiespForBots)
+	{
 		return HC_CONTINUE;
 	}
 	
@@ -478,7 +575,7 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 		static Float:vOrigin_fake[3];
 		vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
 		vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
-		vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(-100.0,100.0),-8190.0,8190.0);
+		vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(0.0,15.0),-8190.0,8190.0);
 		emit_fake_sound(vOrigin_fake,float(volume) / 255.0, attenuation,fFlags, pitch,channel);
 	}
 	
@@ -488,14 +585,14 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 		return HC_CONTINUE;
 	}
 
-	new snd = ArrayFindString(originalSounds, sample);
+	new snd = ArrayFindString(g_aOriginalSounds, sample);
 	if (snd >= 0)
 	{
-		ArrayGetString(replacedSounds, snd, tmp_sample, charsmax(tmp_sample));
+		ArrayGetString(g_aReplacedSounds, snd, tmp_sample, charsmax(tmp_sample));
 	}
 
 	new new_chan = UnpackChannel(pack_ent_chan);
-	new new_ent = g_iEnts[UnpackEntId(pack_ent_chan)];
+	new new_ent = ArrayGetCell(g_aSoundEnts,UnpackEntId(pack_ent_chan));
 
 	if (new_ent <= MAX_PLAYERS)
 	{
@@ -504,18 +601,53 @@ public RH_SV_StartSound_hook(const recipients, const entity, const channel, cons
 	}
 	
 	new Float:vol_mult = 255.0;
+
 	if (g_bGiveSomeRandom)
 	{
-		vol_mult = 255.0 + random_float(0.0,0.5);
+		vol_mult = 255.0 + random_float(0.0,2.0);
 		attenuation = attenuation + random_float(0.0,0.01);
 	}
 
-	if(recipients == 0)
-		rg_emit_sound_all(new_ent, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, float(volume) / vol_mult, attenuation, fFlags, pitch, 0, vOrigin);
-	else 
-		rg_emit_sound_exept_me(new_ent, entity, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, float(volume) / vol_mult, attenuation, fFlags, pitch, 0, vOrigin);
-	
+	new Float:new_vol = float(volume) / vol_mult;
+
+	if (new_vol < g_fMinSoundVolume)
+	{
+		return HC_BREAK;
+	}
+
+	rg_emit_sound_custom(new_ent, entity, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, 0, vOrigin, recipients == 0);
 	return HC_BREAK;
+}
+
+public send_bad_sound(id)
+{
+	if(!is_user_alive(id))
+		return;
+	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	{
+		if (g_bPlayerConnected[i])
+		{
+			// make bad for very old esp boxes
+			rh_emit_sound2(id, i, CHAN_VOICE, "player/die3.wav", VOL_NORM, ATTN_NORM);
+			// make bad for something new esp box
+			rh_emit_sound2(id, i, CHAN_VOICE, "player/headshot1.wav", VOL_NORM, ATTN_NORM);
+			rh_emit_sound2(id, i, CHAN_VOICE, "player/headshot2.wav", VOL_NORM, ATTN_NORM);
+			// hide previous sounds
+			rh_emit_sound2(id, i, CHAN_VOICE, "common/null.wav", VOL_NORM, ATTN_NORM);
+		}
+	}
+}
+
+public CBasePlayer_Spawn_hook(const id)
+{
+	if(!is_user_alive(id))
+		return HC_CONTINUE;
+	
+	if (g_bCrackOldEspBox)
+	{
+		set_task(2.0, "send_bad_sound", id);
+	}
+	return HC_CONTINUE;
 }
 
 #define WAVE_FORMAT_PCM 1
