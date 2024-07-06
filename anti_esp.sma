@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.3 BETA";
+new PLUGIN_VERSION[] = "3.3";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define MAX_CHANNEL CHAN_STREAM
@@ -163,7 +163,7 @@ public fill_entity_and_channel(id, channel)
 			if (one_time_channel_warn && !g_bRepeatChannelMode)
 			{
 				one_time_channel_warn = false;
-				log_amx("Too many sound entities, please increase g_iMaxEntsForSounds in anti_esp.cfg[this can fix not hearing sounds]\n");
+				log_amx("Too many sound entities, please increase g_iMaxEntsForSounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
 			}
 			g_iCurEnt = 0;
 		}
@@ -321,7 +321,7 @@ public plugin_end()
 
 public plugin_precache()
 {
-	cfg_set_path("/plugins/anti_esp.cfg");
+	cfg_set_path("/plugins/unreal_anti_esp.cfg");
 	
 	RandomString(g_sSoundClassname, 15);
 	g_sSoundClassname[5] = '_';
