@@ -10,8 +10,13 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.3";
+new PLUGIN_VERSION[] = "3.4";
 new PLUGIN_AUTHOR[] = "Karaulov";
+
+
+#define GROUP_OP_AND  0
+#define GROUP_OP_NAND 1
+#define GROUP_OP_IGNORE 2
 
 #define MAX_CHANNEL CHAN_STREAM
 new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
@@ -481,7 +486,8 @@ public plugin_precache()
 	}
 }
 
-rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false)
+rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
+					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
 	static Float:vecListener[3];
 	
@@ -489,6 +495,9 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 	{
 		if (g_bPlayerConnected[iListener] && (bForAll || iListener != recipient))
 		{
+			if (iForceListener > 0 && iListener != iForceListener)
+				continue;
+
 			get_entvar(iListener, var_origin, vecListener);
 
 			new Float:direction[3];
@@ -684,7 +693,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
-	rg_emit_sound_custom(new_ent, entity, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, 0, vOrigin, recipients == 0);
+	rg_emit_sound_custom(new_ent, entity, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, 0, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
 	return HC_BREAK;
 }
 
@@ -738,7 +747,7 @@ public RG_CBasePlayer_Spawn_post(const id)
 
 public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3], Float:angles[3], Float:fparam1, Float:fparam2, iParam1, iParam2, bParam1, bParam2)
 {
-	if (invoker < 1 || invoker > MAX_PLAYERS)
+	if (invoker < 1 || invoker > MAX_PLAYERS || flags & FEV_HOSTONLY)
 		return FMRES_IGNORED;
 
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
@@ -750,10 +759,12 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 		{
 			static Float:vOrigin[3];
 			static Float:vEndAim[3];
+
 			get_entvar(invoker,var_origin,vOrigin);
 			get_user_aim_end(invoker,vEndAim);
 
-			new bool:isVisible = false;
+			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_IGNORE);
+			set_entvar(invoker,var_groupinfo, 1);
 
 			for(new p = 1; p < MAX_PLAYERS + 1; p++)
 			{
@@ -761,21 +772,44 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 				{
 					if (p != invoker)
 					{
-						if (CheckVisibilityInOrigin(p, vOrigin) || fm_is_visible_re(p, vEndAim))
+						set_entvar(p,var_groupinfo, 0);
+						if (!g_bPlayerBot[p])
 						{
-							isVisible = true;
-							break;
+#if REAPI_VERSION > 524300
+							if (!CheckVisibilityInOrigin(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
+#else 
+							if (!fm_is_visible_re(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
+#endif
+							{
+								set_entvar(p,var_groupinfo, 1);
+								if (g_iHideEventsMode == 1)
+								{
+									// >100 = player offset
+									RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
+								}
+							}
 						}
+					}
+					else 
+					{
+						set_entvar(p,var_groupinfo, 1);
 					}
 				}
 			}
 
-			if (!isVisible)
+			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_NAND);
+			engfunc(EngFunc_PlaybackEvent, flags, invoker, eventid, delay, origin, angles, fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
+			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_AND);
+
+			for(new p = 1; p < MAX_PLAYERS + 1; p++)
 			{
-				if (g_iHideEventsMode == 1)
-					RH_SV_StartSound_pre(1, invoker, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
-				return FMRES_SUPERCEDE;
+				if (g_bPlayerConnected[p] || g_bPlayerBot[p])
+				{
+					set_entvar(invoker,var_groupinfo, 0);
+				}
 			}
+
+			return FMRES_SUPERCEDE;
 		}
 	}
 	
