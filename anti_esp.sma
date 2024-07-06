@@ -36,8 +36,8 @@ new g_iCurChannel = 0;
 new g_iFakeEnt = 0;
 new g_iReplaceSounds = 0;
 new g_iMaxEntsForSounds = 13;
-
 new g_iHideEventsMode = 0;
+new g_iProtectStatus = 0;
 
 /* from engine constants */
 #define SOUND_NOMINAL_CLIP_DIST 1000.0
@@ -312,6 +312,11 @@ public plugin_end()
 	ArrayDestroy(g_aReplacedSounds);
 	ArrayDestroy(g_aPrecachedSounds);
 	ArrayDestroy(g_aSoundEnts);
+
+	if (g_iProtectStatus == 1)
+	{
+		log_amx("Warning! Protection is not active, possible has conflict with another plugins!");
+	}
 }
 
 public plugin_precache()
@@ -676,6 +681,9 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		return HC_BREAK;
 	}
 
+	if (g_iProtectStatus == 1)
+		g_iProtectStatus = 2;
+
 	rg_emit_sound_custom(new_ent, entity, new_chan, tmp_sample[0] == EOS ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, 0, vOrigin, recipients == 0);
 	return HC_BREAK;
 }
@@ -718,6 +726,8 @@ public RG_CBasePlayer_Spawn_post(const id)
 	if(!is_user_alive(id))
 		return HC_CONTINUE;
 	
+	g_iProtectStatus = 1;
+
 	if (g_bCrackOldEspBox)
 	{
 		new Float:delay = random_float(0.5,3.0);
