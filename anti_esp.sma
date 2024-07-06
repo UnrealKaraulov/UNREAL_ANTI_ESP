@@ -1,6 +1,7 @@
 #include <amxmodx>
 #include <reapi>
 #include <fakemeta>
+#include <engine>
 #include <xs>
 
 #include <easy_cfg>
@@ -9,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.2 UNTESTED";
+new PLUGIN_VERSION[] = "3.3 BETA";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define MAX_CHANNEL CHAN_STREAM
@@ -36,12 +37,14 @@ new g_iFakeEnt = 0;
 new g_iReplaceSounds = 0;
 new g_iMaxEntsForSounds = 13;
 
+new g_iHideEventsMode = 0;
+
 /* from engine constants */
 #define SOUND_NOMINAL_CLIP_DIST 1000.0
 
 new Float:g_fMaxSoundDist = SOUND_NOMINAL_CLIP_DIST;
-new Float:g_fRangeBasedDist = 100.0;
-new Float:g_fMinSoundVolume = 0.019;
+new Float:g_fRangeBasedDist = 64.0;
+new Float:g_fMinSoundVolume = 0.006;
 
 new Float:g_fFakeTime = 0.0;
 
@@ -49,6 +52,46 @@ new Array:g_aPrecachedSounds;
 new Array:g_aOriginalSounds;
 new Array:g_aReplacedSounds;
 new Array:g_aSoundEnts;
+
+new const g_sGunsEvents[][] = {
+    "events/ak47.sc", "events/aug.sc", "events/awp.sc", "events/deagle.sc", 
+    "events/elite_left.sc", "events/elite_right.sc", "events/famas.sc", 
+    "events/fiveseven.sc", "events/g3sg1.sc", "events/galil.sc", "events/glock18.sc", 
+    "events/mac10.sc", "events/m249.sc", "events/m3.sc", "events/m4a1.sc", 
+    "events/mp5n.sc", "events/p228.sc", "events/p90.sc", "events/scout.sc", 
+    "events/sg550.sc", "events/sg552.sc", "events/tmp.sc", "events/ump45.sc", 
+    "events/usp.sc", "events/xm1014.sc"
+};
+
+new const g_sGunsSounds[][][] = {
+    {"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
+    {"weapons/aug-1.wav", "weapons/aug-1.wav"},
+    {"weapons/awp1.wav", "weapons/awp1-1.wav"},
+    {"weapons/deagle-1.wav", "weapons/deagle-1.wav"},
+    {"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
+    {"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
+    {"weapons/famas-1.wav", "weapons/famas-1.wav"},
+    {"weapons/fiveseven-1.wav", "weapons/fiveseven-1.wav"},
+    {"weapons/g3sg1-1.wav", "weapons/g3sg1-1.wav"},
+    {"weapons/galil-1.wav", "weapons/galil-1.wav"},
+    {"weapons/glock18-2.wav", "weapons/glock18-2.wav"},
+    {"weapons/mac10-1.wav", "weapons/mac10-1.wav"},
+    {"weapons/m249-1.wav", "weapons/m249-1.wav"},
+    {"weapons/m3-1.wav", "weapons/m3-1.wav"},
+	{"weapons/m4a1-1.wav", "weapons/m4a1_unsil-1.wav"},
+	{"weapons/mp5-1.wav", "weapons/mp5-1.wav"},
+	{"weapons/p228-1.wav","weapons/p228-1.wav"},
+	{"weapons/p90-1.wav","weapons/p90-1.wav"},
+	{"weapons/scout_fire-1.wav","weapons/scout_fire-1.wav"},
+	{"weapons/sg550-1.wav","weapons/sg550-1.wav"},
+	{"weapons/sg552-1.wav","weapons/sg552-1.wav"},
+	{"weapons/tmp-1.wav","weapons/tmp-1.wav"},
+	{"weapons/ump45-1.wav","weapons/ump45-1.wav"},
+	{"weapons/usp1.wav","weapons/usp_unsil-1.wav"},
+	{"weapons/xm1014-1.wav","weapons/xm1014-1.wav"}
+};
+
+new g_iEventIdx[sizeof(g_sGunsEvents)] = {0,...};
 
 public plugin_init()
 {
@@ -69,14 +112,13 @@ public plugin_init()
 		set_fail_state("Can't create sound entity");
 		return;
 	}
-
-	ArrayPushCell(g_aSoundEnts, iFirstSndEnt);
 	set_entvar(iFirstSndEnt,var_classname, g_sSoundClassname);
 
-	RegisterHookChain(RG_CBasePlayer_Spawn, "CBasePlayer_Spawn_hook", true);
-	
-	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_hook", false);
+	ArrayPushCell(g_aSoundEnts, iFirstSndEnt);
 
+	RegisterHookChain(RG_CBasePlayer_Spawn, "RG_CBasePlayer_Spawn_post", true);
+	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_pre", false);
+	
 	for (new i = 0; i <= MAX_PLAYERS; i++) 
 	{
 		for (new j = 0; j < MAX_CHANNEL; j++) 
@@ -233,6 +275,17 @@ public client_disconnected(id)
 	}
 }
 
+public PrecacheEvent(type, const name[])
+{
+	for(new i = 0; i < sizeof(g_sGunsEvents); i++)
+	{
+		if(equal(g_sGunsEvents[i], name))
+		{
+			g_iEventIdx[i] = get_orig_retval();
+		}
+	}
+}
+
 public PrecacheSound(const szSound[])
 {
 	static tmpstr[64];
@@ -286,6 +339,7 @@ public plugin_precache()
 	cfg_read_flt("general","cut_off_sound_vol", g_fMinSoundVolume, g_fMinSoundVolume);
 	cfg_read_bool("general","replace_sound_for_all_ents", g_bReplaceSoundForAll, g_bReplaceSoundForAll);
 	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
+	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
 
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
@@ -386,23 +440,30 @@ public plugin_precache()
 
 	precache_sound(g_sFakePath);
 	register_forward(FM_PrecacheSound, "PrecacheSound");
+
+	if (g_iHideEventsMode > 0)
+	{
+		register_forward(FM_PrecacheEvent, "PrecacheEvent", true)
+		register_forward(FM_PlaybackEvent, "FM_PlaybackEvent_pre", false);
+	}
 	
 	log_amx("unreal_anti_esp loaded");
 	log_amx("Settings:");
-	log_amx("  g_sSoundClassname = %s", g_sSoundClassname);
-	log_amx("  g_sFakePath = %s", g_sFakePath);
-	log_amx("  g_bRepeatChannelMode = %i", g_bRepeatChannelMode);
-	log_amx("  g_bGiveSomeRandom = %i", g_bGiveSomeRandom);
-	log_amx("  g_iReplaceSounds = %i", g_iReplaceSounds);
-	log_amx("  g_bCrackOldEspBox = %i", g_bCrackOldEspBox);
-	log_amx("  g_bReplaceSoundForAll = %i", g_bReplaceSoundForAll);
-	log_amx("  g_bDebugDumpAllSounds = %i", g_bDebugDumpAllSounds);
-	log_amx("  g_bAntiespForBots = %i", g_bAntiespForBots);
-	log_amx("  g_bVolumeRangeBased = %i", g_bVolumeRangeBased);
-	log_amx("  g_fRangeBasedDist = %f", g_fRangeBasedDist);
-	log_amx("  g_fMaxSoundDist = %f", g_fMaxSoundDist);
-	log_amx("  g_fMinSoundVolume = %f", g_fMinSoundVolume);
-	log_amx("  g_bUseOriginalSounds = %i", g_bUseOriginalSounds);
+	log_amx(" g_sSoundClassname = %s (snd entity classname)", g_sSoundClassname);
+	log_amx(" g_sFakePath = %s (fake sound path)", g_sFakePath);
+	log_amx(" g_bRepeatChannelMode = %i (loop mode)", g_bRepeatChannelMode);
+	log_amx(" g_bGiveSomeRandom = %i (adds more random to more protect)", g_bGiveSomeRandom);
+	log_amx(" g_iReplaceSounds = %i (how many sounds to replace)", g_iReplaceSounds);
+	log_amx(" g_bCrackOldEspBox = %i (cracks old esp box)", g_bCrackOldEspBox);
+	log_amx(" g_bReplaceSoundForAll = %i (replaces sound for all ents)", g_bReplaceSoundForAll);
+	log_amx(" g_bAntiespForBots = %i (enable antiesp for bots)", g_bAntiespForBots);
+	log_amx(" g_bVolumeRangeBased = %i (uses volume based on distance)", g_bVolumeRangeBased);
+	log_amx(" g_fRangeBasedDist = %f (distance for volume based mode)", g_fRangeBasedDist);
+	log_amx(" g_fMaxSoundDist = %f (max sound hear distance)", g_fMaxSoundDist);
+	log_amx(" g_fMinSoundVolume = %f (min sound hear volume)", g_fMinSoundVolume);
+	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
+	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
+	log_amx(" g_bDebugDumpAllSounds = %i (dumps all sounds debug/trace mode)", g_bDebugDumpAllSounds);
 
 	if (g_bDebugDumpAllSounds)
 	{
@@ -492,7 +553,7 @@ emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch,
 	}
 }
 
-public RH_SV_StartSound_hook(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
+public RH_SV_StartSound_pre(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
 	new tmp_sample[64] = {EOS,...};
 
@@ -623,6 +684,18 @@ public send_bad_sound(id)
 {
 	if(!is_user_alive(id))
 		return;
+
+	static Float:vOrigin[3];
+
+	get_entvar(id, var_origin, vOrigin);
+
+	static Float:vOrigin_fake[3];
+	vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(100.0,300.0),-8190.0,8190.0);
+	vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(100.0,300.0),-8190.0,8190.0);
+	vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(0.0,2.0),-8190.0,8190.0);
+
+	set_entvar(id, var_origin, vOrigin_fake);
+
 	for(new i = 1; i < MAX_PLAYERS + 1; i++)
 	{
 		if (g_bPlayerConnected[i])
@@ -636,19 +709,69 @@ public send_bad_sound(id)
 			rh_emit_sound2(id, i, CHAN_VOICE, "common/null.wav", VOL_NORM, ATTN_NORM);
 		}
 	}
+	
+	set_entvar(id, var_origin, vOrigin);
 }
 
-public CBasePlayer_Spawn_hook(const id)
+public RG_CBasePlayer_Spawn_post(const id)
 {
 	if(!is_user_alive(id))
 		return HC_CONTINUE;
 	
 	if (g_bCrackOldEspBox)
 	{
-		set_task(2.0, "send_bad_sound", id);
+		new Float:delay = random_float(0.5,3.0);
+		set_task(delay, "send_bad_sound", id);
 	}
 	return HC_CONTINUE;
 }
+
+public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3], Float:angles[3], Float:fparam1, Float:fparam2, iParam1, iParam2, bParam1, bParam2)
+{
+	if (invoker < 1 || invoker > MAX_PLAYERS)
+		return FMRES_IGNORED;
+
+	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
+		return FMRES_IGNORED;
+
+	for(new i = 0; i < sizeof(g_iEventIdx); i++)
+	{
+		if (g_iEventIdx[i] == eventid)
+		{
+			static Float:vOrigin[3];
+			static Float:vEndAim[3];
+			get_entvar(invoker,var_origin,vOrigin);
+			get_user_aim_end(invoker,vEndAim);
+
+			new bool:isVisible = false;
+
+			for(new p = 1; p < MAX_PLAYERS + 1; p++)
+			{
+				if (g_bPlayerConnected[p])
+				{
+					if (p != invoker)
+					{
+						if (CheckVisibilityInOrigin(p, vOrigin) || fm_is_visible_re(p, vEndAim))
+						{
+							isVisible = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (!isVisible)
+			{
+				if (g_iHideEventsMode == 1)
+					RH_SV_StartSound_pre(1, invoker, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
+				return FMRES_SUPERCEDE;
+			}
+		}
+	}
+	
+	return FMRES_IGNORED;
+}
+
 
 #define WAVE_FORMAT_PCM 1
 #define BITS_PER_SAMPLE 8
@@ -829,4 +952,39 @@ stock trim_to_dir(path[])
             break;
         }
     }
+}
+
+stock bool:fm_is_visible_re(index, const Float:point[3], ignoremonsters = 0) {
+	new Float:start[3], Float:view_ofs[3];
+	get_entvar(index, var_origin, start);
+	get_entvar(index, var_view_ofs, view_ofs);
+	xs_vec_add(start, view_ofs, start);
+
+	engfunc(EngFunc_TraceLine, start, point, ignoremonsters, index, 0);
+
+	new Float:fraction;
+	get_tr2(0, TR_flFraction, fraction);
+	if (fraction == 1.0)
+		return true
+
+	return false
+}
+
+stock get_user_aim_end(index, Float:vEnd[3])
+{
+	static Float:vOrigin[3];
+	static Float:vOffset[3];
+	static Float:vTarget[3];
+
+	get_entvar(index, var_origin, vOrigin);
+	get_entvar(index, var_view_ofs, vOffset);
+	xs_vec_add(vOrigin, vOffset, vOrigin );
+	get_entvar(index, var_v_angle, vTarget);
+
+	angle_vector(vTarget, ANGLEVECTOR_FORWARD, vTarget);
+
+	xs_vec_mul_scalar(vTarget, 4096.0, vTarget);
+	xs_vec_add(vOrigin, vTarget, vTarget);
+
+	trace_line(index, vOrigin, vTarget, vEnd);
 }
