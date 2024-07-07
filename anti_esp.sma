@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.4";
+new PLUGIN_VERSION[] = "3.5";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -42,6 +42,7 @@ new g_iFakeEnt = 0;
 new g_iReplaceSounds = 0;
 new g_iMaxEntsForSounds = 13;
 new g_iHideEventsMode = 0;
+new g_iFakeSoundMode = 1;
 new g_iProtectStatus = 0;
 
 /* from engine constants */
@@ -337,6 +338,7 @@ public plugin_precache()
 	g_aSoundEnts = ArrayCreate();
 
 	cfg_read_str("general","fake_path",g_sFakePath,g_sFakePath,charsmax(g_sFakePath));
+	cfg_read_int("general","enable_fake_sounds", g_iFakeSoundMode, g_iFakeSoundMode);
 	cfg_read_str("general","ent_classname",g_sSoundClassname,g_sSoundClassname,charsmax(g_sSoundClassname));
 	cfg_read_int("general","max_ents_for_sounds", g_iMaxEntsForSounds, g_iMaxEntsForSounds);
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
@@ -350,12 +352,11 @@ public plugin_precache()
 	cfg_read_bool("general","replace_sound_for_all_ents", g_bReplaceSoundForAll, g_bReplaceSoundForAll);
 	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
 	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
-
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
 
-	new tmp_sound[64];
-	new tmp_arg[64];
+	static tmp_sound[64];
+	static tmp_arg[64];
 
 	if (!g_bUseOriginalSounds)
 	{
@@ -374,7 +375,7 @@ public plugin_precache()
 				mkdir("sound/pl_shell", _, true, "GAMECONFIG");
 		}
 
-		new tmp_sound_dest[64];
+		static tmp_sound_dest[64];
 		for(new i = 0; i < g_iReplaceSounds; i++)
 		{
 			if (i < ArraySize(g_aOriginalSounds))
@@ -474,6 +475,7 @@ public plugin_precache()
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
 	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
 	log_amx(" g_bDebugDumpAllSounds = %i (dumps all sounds debug/trace mode)", g_bDebugDumpAllSounds);
+	log_amx(" g_iFakeSoundMode = %i (0 - disabled, 1 - fake sound, 2 - unreal fake sound)", g_iFakeSoundMode);
 
 	if (g_bDebugDumpAllSounds)
 	{
@@ -500,7 +502,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 
 			get_entvar(iListener, var_origin, vecListener);
 
-			new Float:direction[3];
+			static Float:direction[3];
 			xs_vec_sub(vecSource, vecListener, direction);
 
 			new Float:originalDistance = xs_vec_len(direction);
@@ -525,7 +527,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			}
 			
 			/* thanks s1lent for distance based sound volume calculation as in real client engine */
-			new Float:vecFakeSound[3];
+			static Float:vecFakeSound[3];
 
 			xs_vec_mul_scalar(direction, g_fRangeBasedDist + fSomeRandom, vecFakeSound);
 			xs_vec_add(vecListener, vecFakeSound, vecFakeSound);
@@ -555,21 +557,43 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 	set_entvar(entity,var_origin,vecListener);
 }
 
-emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel)
+emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel, iTargetPlayer = 0)
 {
-	set_entvar(g_iFakeEnt,var_origin,origin);
-	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	if (iTargetPlayer > 0)
 	{
-		if (g_bPlayerConnected[i])
+		static Float:bakOrigin[3];
+		if (random_num(0,100) > 50)
 		{
-			rh_emit_sound2(g_iFakeEnt, i, channel, g_sFakePath, volume, attenuation, fFlags, pitch, 0, origin);
+			get_entvar(iTargetPlayer,var_origin,bakOrigin);
+			set_entvar(iTargetPlayer,var_origin,origin);
+			rh_emit_sound2(iTargetPlayer, iTargetPlayer, random_num(0,100) > 50 ? CHAN_VOICE : CHAN_STREAM, g_sFakePath, volume, attenuation, fFlags, pitch, 0, origin);
+			set_entvar(iTargetPlayer,var_origin,bakOrigin);
+		}
+		else 
+		{
+			rh_emit_sound2(g_iFakeEnt, iTargetPlayer, channel, g_sFakePath, volume, attenuation, fFlags, pitch, 0, origin);
+			set_entvar(g_iFakeEnt,var_origin,origin);
+		}
+	}
+	else 
+	{
+		set_entvar(g_iFakeEnt,var_origin,origin);
+
+		for(new i = 1; i < MAX_PLAYERS + 1; i++)
+		{
+			if (g_bPlayerConnected[i])
+			{
+				rh_emit_sound2(g_iFakeEnt, i, channel, g_sFakePath, volume, attenuation, fFlags, pitch, 0, origin);
+			}
 		}
 	}
 }
 
 public RH_SV_StartSound_pre(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
-	new tmp_sample[64] = {EOS,...};
+	static tmp_sample[64];
+
+	tmp_sample[0] = EOS;
 
 	if (g_bDebugDumpAllSounds)
 	{
@@ -640,24 +664,51 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		return HC_CONTINUE;
 	}
 	
-	new Float:vOrigin[3];
+	static Float:vOrigin[3];
 	get_entvar(entity,var_origin, vOrigin);
-
-	if (get_gametime() - g_fFakeTime > 0.1)
-	{
-		g_fFakeTime = get_gametime();
-		
-		static Float:vOrigin_fake[3];
-		vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
-		vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
-		vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(0.0,15.0),-8190.0,8190.0);
-		emit_fake_sound(vOrigin_fake,float(volume) / 255.0, attenuation,fFlags, pitch,channel);
-	}
 	
 	new pack_ent_chan = fill_entity_and_channel(entity, channel);
 	if (pack_ent_chan == 0)
 	{
 		return HC_CONTINUE;
+	}
+	
+	static Float:vOrigin_fake[3];
+	if (g_iFakeSoundMode == 1)
+	{
+		if (get_gametime() - g_fFakeTime > 0.1)
+		{
+			g_fFakeTime = get_gametime();
+
+			vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
+			vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
+			vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(0.0,15.0),-8190.0,8190.0);
+			emit_fake_sound(vOrigin_fake,float(volume) / 255.0, attenuation,fFlags, pitch,channel);
+		}
+	}
+	else if (g_iFakeSoundMode > 1)
+	{
+		static Float:vDir[3];
+		if (get_gametime() - g_fFakeTime > 0.1)
+		{
+			g_fFakeTime = get_gametime();
+				
+			for(new i = 1; i < MAX_PLAYERS + 1; i++)
+			{
+				if (g_bPlayerConnected[i])
+				{
+					get_user_aim_origin_and_dir(i, vOrigin_fake, vDir);
+					
+					xs_vec_mul_scalar(vDir, random_float(50.0,400.0), vDir);
+					xs_vec_add(vOrigin_fake, vDir, vOrigin_fake);
+
+					vOrigin_fake[1] = floatclamp(vOrigin_fake[1] - random_float(-150.0,150.0),-8190.0,8190.0);
+					vOrigin_fake[2] = floatclamp(vOrigin_fake[2] + random_float(-50.0,50.0),-8190.0,8190.0);
+
+					emit_fake_sound(vOrigin_fake, float(volume) / 255.0, attenuation, fFlags, pitch, channel, i);
+				}
+			}
+		}
 	}
 
 	new snd = ArrayFindString(g_aOriginalSounds, sample);
@@ -999,14 +1050,14 @@ stock trim_to_dir(path[])
 }
 
 stock bool:fm_is_visible_re(index, const Float:point[3], ignoremonsters = 0) {
-	new Float:start[3], Float:view_ofs[3];
+	static Float:start[3], Float:view_ofs[3];
 	get_entvar(index, var_origin, start);
 	get_entvar(index, var_view_ofs, view_ofs);
 	xs_vec_add(start, view_ofs, start);
 
 	engfunc(EngFunc_TraceLine, start, point, ignoremonsters, index, 0);
 
-	new Float:fraction;
+	static Float:fraction;
 	get_tr2(0, TR_flFraction, fraction);
 	if (fraction == 1.0)
 		return true
@@ -1017,18 +1068,21 @@ stock bool:fm_is_visible_re(index, const Float:point[3], ignoremonsters = 0) {
 stock get_user_aim_end(index, Float:vEnd[3])
 {
 	static Float:vOrigin[3];
-	static Float:vOffset[3];
 	static Float:vTarget[3];
-
-	get_entvar(index, var_origin, vOrigin);
-	get_entvar(index, var_view_ofs, vOffset);
-	xs_vec_add(vOrigin, vOffset, vOrigin );
-	get_entvar(index, var_v_angle, vTarget);
-
-	angle_vector(vTarget, ANGLEVECTOR_FORWARD, vTarget);
+	get_user_aim_origin_and_dir(index, vOrigin, vTarget);
 
 	xs_vec_mul_scalar(vTarget, 4096.0, vTarget);
 	xs_vec_add(vOrigin, vTarget, vTarget);
 
 	trace_line(index, vOrigin, vTarget, vEnd);
+}
+
+stock get_user_aim_origin_and_dir(index, Float:vOrigin[3], Float:vDir[3])
+{
+	static Float:vOffset[3];
+	get_entvar(index, var_origin, vOrigin);
+	get_entvar(index, var_view_ofs, vOffset);
+	xs_vec_add(vOrigin, vOffset, vOrigin );
+	get_entvar(index, var_v_angle, vDir);
+	angle_vector(vDir, ANGLEVECTOR_FORWARD, vDir);
 }
