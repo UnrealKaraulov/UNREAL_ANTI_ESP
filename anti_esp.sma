@@ -510,6 +510,7 @@ public plugin_precache()
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
 	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
 	log_amx(" g_bSendMissingSound = %i (sends missing sound)", g_bSendMissingSound);
+	log_amx(" g_bProcessAllSounds = %i (protect for all sounds)", g_bProcessAllSounds);
 	log_amx(" g_iFakeSoundMode = %i (0 - disabled, 1 - fake sound, 2 - unreal fake sound)", g_iFakeSoundMode);
 
 	log_amx(" g_bDebugDumpAllSounds = %i (dumps all sounds debug/trace mode)", g_bDebugDumpAllSounds);
