@@ -1152,11 +1152,11 @@ stock trim_to_dir(path[])
 {
     new len = strlen(path);
     len--;
-    for(new i = len; i >= 0; i--)
+    for(; len >= 0; len--)
     {
-        if(path[i] == '/' || path[i] == '\\')
+        if(path[len] == '/' || path[len] == '\\')
         {
-            path[i] = EOS;
+            path[len] = EOS;
             break;
         }
     }
