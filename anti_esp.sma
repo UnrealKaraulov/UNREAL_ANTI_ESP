@@ -334,6 +334,27 @@ public plugin_precache()
 {
 	cfg_set_path("plugins/unreal_anti_esp.cfg");
 	
+	new tmp_cfgdir[512];
+	new tmp_cfgpath[512];
+	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
+	trim_to_dir(tmp_cfgdir);
+
+	if (!dir_exists(tmp_cfgdir))
+	{
+		log_amx("Warning config dir not found: %s",tmp_cfgdir);
+		if (mkdir(tmp_cfgdir) < 0)
+		{
+			set_fail_state("Fail while create %s dir",tmp_cfgdir);
+			return;
+		}
+		else 
+		{
+			log_amx("Config dir %s created!",tmp_cfgdir);
+		}
+	}
+
+	cfg_get_path(tmp_cfgpath,charsmax(tmp_cfgpath));
+
 	RandomString(g_sSoundClassname, 15);
 	g_sSoundClassname[5] = '_';
 
@@ -524,9 +545,6 @@ public plugin_precache()
 	{
 		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
 	}
-
-	new tmp_cfgpath[512];
-	cfg_get_path(tmp_cfgpath,charsmax(tmp_cfgpath));
 
 	log_amx("Config path: %s",tmp_cfgpath);
 }
