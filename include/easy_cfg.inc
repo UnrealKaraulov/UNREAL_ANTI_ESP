@@ -2,11 +2,18 @@
 	#include <ini_file>
 #endif
 
-new stock cfg_path[512] = "/plugins/easy_cfg.ini";
+new stock cfg_path[64] = "plugins/easy_cfg.ini";
 
 stock cfg_set_path(const path[])
 {
 	copy(cfg_path,charsmax(cfg_path),path);
+}
+
+stock cfg_get_path(path[], len)
+{
+	new szFile[64]; // as in ini_file
+	formatex(szFile[get_configsdir(szFile,charsmax(szFile))], charsmax(szFile), "/%s.ini", cfg_path);
+	copy(path,len,szFile);
 }
 
 stock cfg_read_str(const section[], const arg[], default_val[], out_val[], outlen)

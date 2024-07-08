@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.7";
+new PLUGIN_VERSION[] = "3.8";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -332,7 +332,7 @@ public plugin_end()
 
 public plugin_precache()
 {
-	cfg_set_path("/plugins/unreal_anti_esp.cfg");
+	cfg_set_path("plugins/unreal_anti_esp.cfg");
 	
 	RandomString(g_sSoundClassname, 15);
 	g_sSoundClassname[5] = '_';
@@ -524,6 +524,11 @@ public plugin_precache()
 	{
 		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
 	}
+
+	new tmp_cfgpath[512];
+	cfg_get_path(tmp_cfgpath,charsmax(tmp_cfgpath));
+
+	log_amx("Config path: %s",tmp_cfgpath);
 }
 
 rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
