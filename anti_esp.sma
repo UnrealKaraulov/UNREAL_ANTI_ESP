@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.8";
+new PLUGIN_VERSION[] = "3.9";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -35,8 +35,8 @@ new bool:g_bCrackOldEspBox = true;
 new bool:g_bSendMissingSound = false;
 new bool:g_bVolumeRangeBased = true;
 new bool:g_bUseOriginalSounds = false;
-new bool:g_bDebugDumpAllSounds = false;
 new bool:g_bProcessAllSounds = false;
+new bool:g_bDebugDumpAllSounds = false;
 
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
@@ -544,6 +544,10 @@ public plugin_precache()
 	if (g_bUseOriginalSounds)
 	{
 		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
+		if (!g_bProcessAllSounds)
+		{
+			set_fail_state("process_all_sounds disabled, no sound for replace.");
+		}
 	}
 
 	log_amx("Config path: %s",tmp_cfgpath);
@@ -817,7 +821,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 
 	if (new_ent <= MAX_PLAYERS)
 	{
-		set_fail_state("Failed to unpack entity or channel from packed value!");
+		set_fail_state("Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
 		return HC_CONTINUE;
 	}
 	
