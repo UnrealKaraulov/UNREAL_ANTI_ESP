@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.9";
+new PLUGIN_VERSION[] = "3.10";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -62,30 +62,30 @@ new Array:g_aReplacedSounds;
 new Array:g_aSoundEnts;
 
 new const g_sGunsEvents[][] = {
-    "events/ak47.sc", "events/aug.sc", "events/awp.sc", "events/deagle.sc", 
-    "events/elite_left.sc", "events/elite_right.sc", "events/famas.sc", 
-    "events/fiveseven.sc", "events/g3sg1.sc", "events/galil.sc", "events/glock18.sc", 
-    "events/mac10.sc", "events/m249.sc", "events/m3.sc", "events/m4a1.sc", 
-    "events/mp5n.sc", "events/p228.sc", "events/p90.sc", "events/scout.sc", 
-    "events/sg550.sc", "events/sg552.sc", "events/tmp.sc", "events/ump45.sc", 
-    "events/usp.sc", "events/xm1014.sc"
+	"events/ak47.sc", "events/aug.sc", "events/awp.sc", "events/deagle.sc", 
+	"events/elite_left.sc", "events/elite_right.sc", "events/famas.sc", 
+	"events/fiveseven.sc", "events/g3sg1.sc", "events/galil.sc", "events/glock18.sc", 
+	"events/mac10.sc", "events/m249.sc", "events/m3.sc", "events/m4a1.sc", 
+	"events/mp5n.sc", "events/p228.sc", "events/p90.sc", "events/scout.sc", 
+	"events/sg550.sc", "events/sg552.sc", "events/tmp.sc", "events/ump45.sc", 
+	"events/usp.sc", "events/xm1014.sc"
 };
 
 new const g_sGunsSounds[][][] = {
-    {"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
-    {"weapons/aug-1.wav", "weapons/aug-1.wav"},
-    {"weapons/awp1.wav", "weapons/awp1-1.wav"},
-    {"weapons/deagle-1.wav", "weapons/deagle-1.wav"},
-    {"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
-    {"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
-    {"weapons/famas-1.wav", "weapons/famas-1.wav"},
-    {"weapons/fiveseven-1.wav", "weapons/fiveseven-1.wav"},
-    {"weapons/g3sg1-1.wav", "weapons/g3sg1-1.wav"},
-    {"weapons/galil-1.wav", "weapons/galil-1.wav"},
-    {"weapons/glock18-2.wav", "weapons/glock18-2.wav"},
-    {"weapons/mac10-1.wav", "weapons/mac10-1.wav"},
-    {"weapons/m249-1.wav", "weapons/m249-1.wav"},
-    {"weapons/m3-1.wav", "weapons/m3-1.wav"},
+	{"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
+	{"weapons/aug-1.wav", "weapons/aug-1.wav"},
+	{"weapons/awp1.wav", "weapons/awp1-1.wav"},
+	{"weapons/deagle-1.wav", "weapons/deagle-1.wav"},
+	{"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
+	{"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
+	{"weapons/famas-1.wav", "weapons/famas-1.wav"},
+	{"weapons/fiveseven-1.wav", "weapons/fiveseven-1.wav"},
+	{"weapons/g3sg1-1.wav", "weapons/g3sg1-1.wav"},
+	{"weapons/galil-1.wav", "weapons/galil-1.wav"},
+	{"weapons/glock18-2.wav", "weapons/glock18-2.wav"},
+	{"weapons/mac10-1.wav", "weapons/mac10-1.wav"},
+	{"weapons/m249-1.wav", "weapons/m249-1.wav"},
+	{"weapons/m3-1.wav", "weapons/m3-1.wav"},
 	{"weapons/m4a1-1.wav", "weapons/m4a1_unsil-1.wav"},
 	{"weapons/mp5-1.wav", "weapons/mp5-1.wav"},
 	{"weapons/p228-1.wav","weapons/p228-1.wav"},
@@ -109,6 +109,7 @@ public plugin_init()
 	g_iFakeEnt = rg_create_entity("info_target");
 	if (is_nullent(g_iFakeEnt))
 	{
+		log_error(AMX_ERR_MEMACCESS, "Can't create fake entity");
 		set_fail_state("Can't create fake entity");
 		return;
 	}
@@ -117,6 +118,7 @@ public plugin_init()
 	new iFirstSndEnt = rg_create_entity("info_target");
 	if (is_nullent(iFirstSndEnt))
 	{
+		log_error(AMX_ERR_MEMACCESS, "Can't create sound entity");
 		set_fail_state("Can't create sound entity");
 		return;
 	}
@@ -160,6 +162,7 @@ public fill_entity_and_channel(id, channel)
 			new iSndEnt = rg_create_entity("info_target");
 			if (is_nullent(iSndEnt))
 			{
+				log_error(AMX_ERR_MEMACCESS, "Can't create sound entity");
 				set_fail_state("Can't create sound entity");
 				return 0;
 			}
@@ -172,7 +175,7 @@ public fill_entity_and_channel(id, channel)
 			if (one_time_channel_warn && !g_bRepeatChannelMode)
 			{
 				one_time_channel_warn = false;
-				log_amx("Too many sound entities, please increase g_iMaxEntsForSounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
+				log_error("Too many sound entities, please increase max_ents_for_sounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
 			}
 			g_iCurEnt = 0;
 		}
@@ -309,8 +312,9 @@ public RH_PF_precache_sound_I_pre(const szSound[])
 	ArrayGetString(g_aReplacedSounds, i, tmpstr, charsmax(tmpstr));
 	if (ArrayGetCell(g_aPrecachedSounds,i) <= 0)
 	{
+		log_error(AMX_ERR_NOTFOUND, "Can't precache %s",tmpstr);
 		set_fail_state("No sound/%s found!", tmpstr);
-   		return HC_CONTINUE;
+		return HC_CONTINUE;
 	}
 
 	SetHookChainArg(1, ATYPE_STRING, tmpstr);
@@ -344,6 +348,7 @@ public plugin_precache()
 		log_amx("Warning config dir not found: %s",tmp_cfgdir);
 		if (mkdir(tmp_cfgdir) < 0)
 		{
+			log_error(AMX_ERR_NOTFOUND, "Can't create %s dir",tmp_cfgdir);
 			set_fail_state("Fail while create %s dir",tmp_cfgdir);
 			return;
 		}
@@ -391,6 +396,7 @@ public plugin_precache()
 	{
 		if (g_bReinstallNewSounds)
 			cfg_write_bool("general","reinstall_with_new_sounds",false);
+
 		cfg_read_int("sounds","sounds",g_iReplaceSounds,g_iReplaceSounds);
 
 
@@ -436,6 +442,7 @@ public plugin_precache()
 				{
 					if (mkdir(tmp_arg, _, true, "GAMECONFIG") < 0)
 					{
+						log_error(AMX_ERR_NOTFOUND, "Can't create %s dir",tmp_arg);
 						set_fail_state("Fail while create %s dir",tmp_arg);
 						return;
 					}
@@ -448,6 +455,7 @@ public plugin_precache()
 
 				if (!sound_exists(tmp_sound_dest))
 				{
+					log_error(AMX_ERR_MEMACCESS, "Can't move %s to %s",tmp_arg,tmp_sound_dest);
 					set_fail_state("Fail while move %s to %s",tmp_sound,tmp_sound_dest);
 					return;
 				}
@@ -465,6 +473,7 @@ public plugin_precache()
 
 		if (!sound_exists(g_sFakePath))
 		{
+			log_error(AMX_ERR_NOTFOUND, "Can't create %s sound",g_sFakePath);
 			set_fail_state("No fake sound/%s found!",g_sFakePath);
 			return;
 		}
@@ -484,6 +493,7 @@ public plugin_precache()
 
 		if (!sound_exists(g_sMissingPath))
 		{
+			log_error(AMX_ERR_NOTFOUND, "Can't create %s sound",g_sMissingPath);
 			set_fail_state("No miss sound/%s found!",g_sMissingPath);
 			return;
 		}
@@ -499,6 +509,7 @@ public plugin_precache()
 		ArrayGetString(g_aReplacedSounds, i, tmp_arg, charsmax(tmp_arg));
 		if (!sound_exists(tmp_arg))
 		{
+			log_error(AMX_ERR_NOTFOUND, "Can't create %s sound",tmp_arg);
 			set_fail_state("No sound/%s found!", tmp_arg);
 			return;
 		}
@@ -546,8 +557,15 @@ public plugin_precache()
 		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
 		if (!g_bProcessAllSounds)
 		{
+			log_error(AMX_ERR_GENERAL, "Warning! Found conflict USE_ORIGINAL_SOUND_PATHS and process_all_sounds options!");
 			set_fail_state("process_all_sounds disabled, no sound for replace.");
 		}
+	}
+
+	if (ArraySize(g_aReplacedSounds) == 0 && !g_bProcessAllSounds)
+	{
+		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",tmp_cfgpath);
+		set_fail_state("no sounds for replace.");
 	}
 
 	log_amx("Config path: %s",tmp_cfgpath);
@@ -821,7 +839,8 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 
 	if (new_ent <= MAX_PLAYERS)
 	{
-		set_fail_state("Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
+		log_error(AMX_ERR_BOUNDS,"Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
+		set_fail_state("Failed to unpack entity or channel! Please check error log and config : %s", tmp_cfgpath);
 		return HC_CONTINUE;
 	}
 	
@@ -988,6 +1007,7 @@ stock MoveSoundWithRandomTail(const path[], const dest[])
 	new file = fopen(path, "rb", true, "GAMECONFIG");
 	if (!file)
 	{
+		log_error(AMX_ERR_MEMACCESS, "Failed to open WAV source %s file.", path);
 		set_fail_state("Failed to open WAV source %s file.", path);
 		return;
 	}
@@ -995,6 +1015,7 @@ stock MoveSoundWithRandomTail(const path[], const dest[])
 	new file_dest = fopen(dest, "wb", true, "GAMECONFIG");
 	if (!file_dest)
 	{
+		log_error(AMX_ERR_MEMACCESS, "Failed to open WAV dest %s file.", dest);
 		set_fail_state("Failed to open WAV dest %s file.", dest);
 		return;
 	}
@@ -1033,59 +1054,60 @@ stock MoveSoundWithRandomTail(const path[], const dest[])
 
 stock CreateSilentWav(const path[],Float:duration = 1.0)
 {
-    new dataSize = floatround(duration * SAMPLE_RATE); // Total samples
-    new fileSize = 44 + dataSize - 8; 
+	new dataSize = floatround(duration * SAMPLE_RATE); // Total samples
+	new fileSize = 44 + dataSize - 8; 
 
-    new file = fopen(path, "wb", true, "GAMECONFIG");
-    if (file)
-    {
-        // Writing the WAV header
+	new file = fopen(path, "wb", true, "GAMECONFIG");
+	if (file)
+	{
+		// Writing the WAV header
 		// 1179011410 = "RIFF"
-        fwrite(file, 1179011410, BLOCK_INT);
-        fwrite(file, fileSize, BLOCK_INT); // File size - 8
+		fwrite(file, 1179011410, BLOCK_INT);
+		fwrite(file, fileSize, BLOCK_INT); // File size - 8
 		// 1163280727 = "WAVE"
-        fwrite(file, 1163280727, BLOCK_INT);
+		fwrite(file, 1163280727, BLOCK_INT);
 		// 544501094 == "fmt "
-        fwrite(file, 544501094, BLOCK_INT);
-        fwrite(file, 16, BLOCK_INT); // Subchunk1Size (16 for PCM)
-        fwrite(file, WAVE_FORMAT_PCM, BLOCK_SHORT); // Audio format (1 for PCM)
-        fwrite(file, NUM_CHANNELS, BLOCK_SHORT); // NumChannels
-        fwrite(file, SAMPLE_RATE, BLOCK_INT); // SampleRate
-        fwrite(file, SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8, BLOCK_INT); // ByteRate
-        fwrite(file, NUM_CHANNELS * BITS_PER_SAMPLE / 8, BLOCK_SHORT); // BlockAlign
-        fwrite(file, BITS_PER_SAMPLE, BLOCK_SHORT); // BitsPerSample
+		fwrite(file, 544501094, BLOCK_INT);
+		fwrite(file, 16, BLOCK_INT); // Subchunk1Size (16 for PCM)
+		fwrite(file, WAVE_FORMAT_PCM, BLOCK_SHORT); // Audio format (1 for PCM)
+		fwrite(file, NUM_CHANNELS, BLOCK_SHORT); // NumChannels
+		fwrite(file, SAMPLE_RATE, BLOCK_INT); // SampleRate
+		fwrite(file, SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8, BLOCK_INT); // ByteRate
+		fwrite(file, NUM_CHANNELS * BITS_PER_SAMPLE / 8, BLOCK_SHORT); // BlockAlign
+		fwrite(file, BITS_PER_SAMPLE, BLOCK_SHORT); // BitsPerSample
 		// 1635017060 = "data"
-        fwrite(file, 1635017060, BLOCK_INT);
-        fwrite(file, dataSize, BLOCK_INT); // Subchunk2Size
+		fwrite(file, 1635017060, BLOCK_INT);
+		fwrite(file, dataSize, BLOCK_INT); // Subchunk2Size
 
-        // Writing the silent audio data
-        for (new i = 0; i < dataSize; i++)
-        {
-            fwrite(file, 128, BLOCK_BYTE); // Middle value for 8-bit PCM to represent silence
-        }
+		// Writing the silent audio data
+		for (new i = 0; i < dataSize; i++)
+		{
+			fwrite(file, 128, BLOCK_BYTE); // Middle value for 8-bit PCM to represent silence
+		}
 
-        fclose(file);
-    }
-    else
-    {
-        set_fail_state("Failed to create WAV file.");
-    }
+		fclose(file);
+	}
+	else
+	{
+		log_error(AMX_ERR_MEMACCESS, "Failed to create WAV file: %s", path);
+		set_fail_state("Failed to create WAV file.");
+	}
 }
 
 new const g_CharSet[] = "abcdefghijklmnopqrstuvwxyz";
 
 stock RandomString(dest[], length)
 {
-    new i, randIndex;
-    new charsetLength = strlen(g_CharSet);
+	new i, randIndex;
+	new charsetLength = strlen(g_CharSet);
 
-    for (i = 0; i < length; i++)
-    {
-        randIndex = random(charsetLength);
-        dest[i] = g_CharSet[randIndex];
-    }
+	for (i = 0; i < length; i++)
+	{
+		randIndex = random(charsetLength);
+		dest[i] = g_CharSet[randIndex];
+	}
 
-    dest[length - 1] = EOS;  // Null-terminate the string
+	dest[length - 1] = EOS;  // Null-terminate the string
 }
 
 RandomSoundPostfix(const prefix[], dest[], length)
@@ -1125,17 +1147,17 @@ StandSoundPostfix(const prefix[], dest[], length)
 
 stock PackChannelEnt(num1, num2)
 {
-    return (num1 & 0xFF) | ((num2 & 0xFFFFFF) << 8);
+	return (num1 & 0xFF) | ((num2 & 0xFFFFFF) << 8);
 }
 
 stock UnpackChannel(packedNum)
 {
-    return packedNum & 0xFF;
+	return packedNum & 0xFF;
 }
 
 stock UnpackEntId(packedNum)
 {
-    return (packedNum >> 8) & 0xFFFFFF;
+	return (packedNum >> 8) & 0xFFFFFF;
 }
 
 stock bool:sound_exists(path[])
@@ -1154,16 +1176,16 @@ stock bool:remove_sound(path[])
 
 stock trim_to_dir(path[])
 {
-    new len = strlen(path);
-    len--;
-    for(; len >= 0; len--)
-    {
-        if(path[len] == '/' || path[len] == '\\')
-        {
-            path[len] = EOS;
-            break;
-        }
-    }
+	new len = strlen(path);
+	len--;
+	for(; len >= 0; len--)
+	{
+		if(path[len] == '/' || path[len] == '\\')
+		{
+			path[len] = EOS;
+			break;
+		}
+	}
 }
 
 stock bool:fm_is_visible_re(index, const Float:point[3], ignoremonsters = 0) {
