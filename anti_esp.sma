@@ -24,6 +24,7 @@ new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
 new g_sSoundClassname[64] = "info_target";
 new g_sFakePath[64] = "player/pl_step5.wav";
 new g_sMissingPath[64] = "player/pl_step0.wav";
+new g_sConfigPath[512];
 
 new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bPlayerBot[MAX_PLAYERS + 1] = {false,...};
@@ -175,7 +176,7 @@ public fill_entity_and_channel(id, channel)
 			if (one_time_channel_warn && !g_bRepeatChannelMode)
 			{
 				one_time_channel_warn = false;
-				log_error("Too many sound entities, please increase max_ents_for_sounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
+				log_error(AMX_ERR_BOUNDS, "Too many sound entities, please increase max_ents_for_sounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
 			}
 			g_iCurEnt = 0;
 		}
@@ -339,7 +340,6 @@ public plugin_precache()
 	cfg_set_path("plugins/unreal_anti_esp.cfg");
 	
 	new tmp_cfgdir[512];
-	new tmp_cfgpath[512];
 	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
 	trim_to_dir(tmp_cfgdir);
 
@@ -358,7 +358,7 @@ public plugin_precache()
 		}
 	}
 
-	cfg_get_path(tmp_cfgpath,charsmax(tmp_cfgpath));
+	cfg_get_path(g_sConfigPath,charsmax(g_sConfigPath));
 
 	RandomString(g_sSoundClassname, 15);
 	g_sSoundClassname[5] = '_';
@@ -564,11 +564,11 @@ public plugin_precache()
 
 	if (ArraySize(g_aReplacedSounds) == 0 && !g_bProcessAllSounds)
 	{
-		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",tmp_cfgpath);
+		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",g_sConfigPath);
 		set_fail_state("no sounds for replace.");
 	}
 
-	log_amx("Config path: %s",tmp_cfgpath);
+	log_amx("Config path: %s",g_sConfigPath);
 }
 
 rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
@@ -837,10 +837,10 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	new new_chan = UnpackChannel(pack_ent_chan);
 	new new_ent = ArrayGetCell(g_aSoundEnts,UnpackEntId(pack_ent_chan));
 
-	if (new_ent <= MAX_PLAYERS)
+	if (new_ent <= get_maxplayers())
 	{
 		log_error(AMX_ERR_BOUNDS,"Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
-		set_fail_state("Failed to unpack entity or channel! Please check error log and config : %s", tmp_cfgpath);
+		set_fail_state("Failed to unpack entity or channel! Please check error log and config : %s", g_sConfigPath);
 		return HC_CONTINUE;
 	}
 	
