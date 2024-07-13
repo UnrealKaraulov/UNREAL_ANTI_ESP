@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.10";
+new PLUGIN_VERSION[] = "3.11";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -36,6 +36,7 @@ new bool:g_bCrackOldEspBox = true;
 new bool:g_bSendMissingSound = false;
 new bool:g_bVolumeRangeBased = true;
 new bool:g_bUseOriginalSounds = false;
+new bool:g_bUseOriginalSource = false;
 new bool:g_bProcessAllSounds = false;
 new bool:g_bDebugDumpAllSounds = false;
 
@@ -144,7 +145,7 @@ new bool:one_time_channel_warn = true;
 
 public fill_entity_and_channel(id, channel)
 {
-	if (channel > MAX_CHANNEL || channel <= 0)
+	if (channel > MAX_CHANNEL || channel <= 0 || g_bUseOriginalSource)
 		return 0;
 
 	if (!g_bRepeatChannelMode)
@@ -387,6 +388,7 @@ public plugin_precache()
 	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
 	cfg_read_bool("general","process_all_sounds", g_bProcessAllSounds, g_bProcessAllSounds);
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
+	cfg_read_bool("general","USE_ORIGINAL_ENTITY_AND_CHANNEL", g_bUseOriginalSource, g_bUseOriginalSource);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
 
 	static tmp_sound[64];
@@ -540,6 +542,7 @@ public plugin_precache()
 	log_amx(" g_fMaxSoundDist = %f (max sound hear distance)", g_fMaxSoundDist);
 	log_amx(" g_fMinSoundVolume = %f (min sound hear volume)", g_fMinSoundVolume);
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
+	log_amx(" g_bUseOriginalSource = %i (use original sound source)", g_bUseOriginalSource);
 	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
 	log_amx(" g_bSendMissingSound = %i (sends missing sound)", g_bSendMissingSound);
 	log_amx(" g_bProcessAllSounds = %i (protect for all sounds)", g_bProcessAllSounds);
@@ -562,7 +565,7 @@ public plugin_precache()
 		}
 	}
 
-	if (ArraySize(g_aReplacedSounds) == 0 && !g_bProcessAllSounds)
+	if (ArraySize(g_aReplacedSounds) <= 1 && !g_bProcessAllSounds)
 	{
 		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",g_sConfigPath);
 		set_fail_state("no sounds for replace.");
@@ -633,11 +636,18 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 		}
 	}
 
-	// hide fake ents coords
-	vecListener[0] = random_float(-8190.0,8190.0);
-	vecListener[1] = random_float(-8190.0,8190.0);
-	vecListener[2] = random_float(-200.0,200.0);
-	set_entvar(entity,var_origin,vecListener);
+	
+
+	if (g_bUseOriginalSource)
+		set_entvar(entity, var_origin, vecSource);
+	else 
+	{
+		// hide fake ents coords
+		vecListener[0] = random_float(-8190.0,8190.0);
+		vecListener[1] = random_float(-8190.0,8190.0);
+		vecListener[2] = random_float(-200.0,200.0);
+		set_entvar(entity,var_origin,vecListener);
+	}
 }
 
 emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel, iTargetPlayer = 0)
@@ -791,7 +801,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	get_entvar(entity,var_origin, vOrigin);
 	
 	new pack_ent_chan = fill_entity_and_channel(entity, channel);
-	if (pack_ent_chan == 0)
+	if (pack_ent_chan == 0 && !g_bUseOriginalSource)
 	{
 		return HC_CONTINUE;
 	}
@@ -834,10 +844,21 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		}
 	}
 
-	new new_chan = UnpackChannel(pack_ent_chan);
-	new new_ent = ArrayGetCell(g_aSoundEnts,UnpackEntId(pack_ent_chan));
+	new new_chan;
+	new new_ent;
 
-	if (new_ent <= get_maxplayers())
+	if (g_bUseOriginalSource)
+	{
+		new_chan = channel;
+		new_ent = entity;
+	}
+	else 
+	{
+		new_chan = UnpackChannel(pack_ent_chan);
+		new_ent = ArrayGetCell(g_aSoundEnts,UnpackEntId(pack_ent_chan));
+	}
+
+	if (new_ent <= get_maxplayers() && !g_bUseOriginalSource)
 	{
 		log_error(AMX_ERR_BOUNDS,"Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
 		set_fail_state("Failed to unpack entity or channel! Please check error log and config : %s", g_sConfigPath);
@@ -906,6 +927,7 @@ public send_bad_sound(id)
 			}
 			// hide previous sounds
 			rh_emit_sound2(id, i, chan, g_sFakePath, VOL_NORM, ATTN_NORM);
+			rh_emit_sound2(id, i, chan, g_sFakePath, VOL_NORM, ATTN_NORM, SND_STOP);
 		}
 	}
 	
@@ -917,7 +939,8 @@ public RG_CBasePlayer_Spawn_post(const id)
 	if(!is_user_alive(id))
 		return HC_CONTINUE;
 	
-	g_iProtectStatus = 1;
+	if (!g_bPlayerBot[id])
+		g_iProtectStatus = 1;
 	
 	new Float:delay = random_float(0.5,3.0);
 	set_task(delay, "send_bad_sound", id);
