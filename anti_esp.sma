@@ -554,7 +554,7 @@ public plugin_precache()
 #if REAPI_VERSION > 524300
 	log_amx(" g_bSkipPAS = %i (skip PAS check)", g_bSkipPAS);
 #else 
-	log_amx(" g_bSkipPAS = [PAS NOT SUPPORTED IN CURRENT REAPI VERSION]", g_bSkipPAS);
+	log_amx(" g_bSkipPAS = [PAS NOT SUPPORTED IN CURRENT REAPI VERSION]");
 #endif
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
 	log_amx(" g_bUseOriginalSource = %i (use original sound source)", g_bUseOriginalSource);
