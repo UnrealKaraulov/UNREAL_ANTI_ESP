@@ -37,7 +37,9 @@ new bool:g_bSendMissingSound = false;
 new bool:g_bVolumeRangeBased = true;
 new bool:g_bUseOriginalSounds = false;
 new bool:g_bUseOriginalSource = false;
+#if REAPI_VERSION > 524300
 new bool:g_bSkipPAS = false;
+#endif
 new bool:g_bProcessAllSounds = false;
 new bool:g_bDebugDumpAllSounds = false;
 
@@ -392,7 +394,9 @@ public plugin_precache()
 	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
 	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
 	cfg_read_bool("general","process_all_sounds", g_bProcessAllSounds, g_bProcessAllSounds);
+#if REAPI_VERSION > 524300
 	cfg_read_bool("general","skip_pas_check", g_bSkipPAS, g_bSkipPAS);
+#endif
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","USE_ORIGINAL_ENTITY_AND_CHANNEL", g_bUseOriginalSource, g_bUseOriginalSource);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
@@ -547,7 +551,11 @@ public plugin_precache()
 	log_amx(" g_fRangeBasedDist = %f (distance for volume based mode)", g_fRangeBasedDist);
 	log_amx(" g_fMaxSoundDist = %f (max sound hear distance)", g_fMaxSoundDist);
 	log_amx(" g_fMinSoundVolume = %f (min sound hear volume)", g_fMinSoundVolume);
+#if REAPI_VERSION > 524300
 	log_amx(" g_bSkipPAS = %i (skip PAS check)", g_bSkipPAS);
+#else 
+	log_amx(" g_bSkipPAS = [PAS NOT SUPPORTED IN CURRENT REAPI VERSION]", g_bSkipPAS);
+#endif
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
 	log_amx(" g_bUseOriginalSource = %i (use original sound source)", g_bUseOriginalSource);
 	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
@@ -594,12 +602,12 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 				continue;
 
 			get_entvar(iListener, var_origin, vecListener);
-
+#if REAPI_VERSION > 524300
 			if (!g_bSkipPAS && !CheckVisibilityInOrigin(iListener, vecSource, VisibilityInPAS))
 			{
 				continue;
 			}
-
+#endif
 			static Float:direction[3];
 			xs_vec_sub(vecSource, vecListener, direction);
 
