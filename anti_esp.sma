@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.11";
+new PLUGIN_VERSION[] = "3.13";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -37,6 +37,7 @@ new bool:g_bSendMissingSound = false;
 new bool:g_bVolumeRangeBased = true;
 new bool:g_bUseOriginalSounds = false;
 new bool:g_bUseOriginalSource = false;
+new bool:g_bSkipPAS = false;
 new bool:g_bProcessAllSounds = false;
 new bool:g_bDebugDumpAllSounds = false;
 
@@ -174,10 +175,14 @@ public fill_entity_and_channel(id, channel)
 		}
 		else 
 		{
-			if (one_time_channel_warn && !g_bRepeatChannelMode)
+			if (!g_bRepeatChannelMode)
 			{
-				one_time_channel_warn = false;
-				log_error(AMX_ERR_BOUNDS, "Too many sound entities, please increase max_ents_for_sounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
+				if (one_time_channel_warn)
+				{
+					one_time_channel_warn = false;
+					log_error(AMX_ERR_BOUNDS, "Too many sound entities, please increase max_ents_for_sounds in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
+				}
+				return 0;
 			}
 			g_iCurEnt = 0;
 		}
@@ -387,6 +392,7 @@ public plugin_precache()
 	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
 	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
 	cfg_read_bool("general","process_all_sounds", g_bProcessAllSounds, g_bProcessAllSounds);
+	cfg_read_bool("general","skip_pas_check", g_bSkipPAS, g_bSkipPAS);
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","USE_ORIGINAL_ENTITY_AND_CHANNEL", g_bUseOriginalSource, g_bUseOriginalSource);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
@@ -541,6 +547,7 @@ public plugin_precache()
 	log_amx(" g_fRangeBasedDist = %f (distance for volume based mode)", g_fRangeBasedDist);
 	log_amx(" g_fMaxSoundDist = %f (max sound hear distance)", g_fMaxSoundDist);
 	log_amx(" g_fMinSoundVolume = %f (min sound hear volume)", g_fMinSoundVolume);
+	log_amx(" g_bSkipPAS = %i (skip PAS check)", g_bSkipPAS);
 	log_amx(" g_bUseOriginalSounds = %i (use original sound paths)", g_bUseOriginalSounds);
 	log_amx(" g_bUseOriginalSource = %i (use original sound source)", g_bUseOriginalSource);
 	log_amx(" g_iHideEventsMode = %i (0 - disabled, 1 - emulate sound, 2 - full block)", g_iHideEventsMode);
@@ -587,6 +594,11 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 				continue;
 
 			get_entvar(iListener, var_origin, vecListener);
+
+			if (!g_bSkipPAS && !CheckVisibilityInOrigin(iListener, vecSource, VisibilityInPAS))
+			{
+				continue;
+			}
 
 			static Float:direction[3];
 			xs_vec_sub(vecSource, vecListener, direction);
@@ -883,7 +895,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
-	rg_emit_sound_custom(new_ent, entity, new_chan, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, 0, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
+	rg_emit_sound_custom(new_ent, entity, new_chan, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
 	return HC_BREAK;
 }
 
@@ -896,7 +908,6 @@ public send_bad_sound(id)
 		return;
 
 	static Float:vOrigin[3];
-
 	get_entvar(id, var_origin, vOrigin);
 
 	static Float:vOrigin_fake[3];
@@ -908,29 +919,27 @@ public send_bad_sound(id)
 
 	new chan = random_num(0,100) > 50 ? CHAN_VOICE : CHAN_STREAM;
 
-	for(new i = 1; i < MAX_PLAYERS + 1; i++)
+	if (g_bCrackOldEspBox)
 	{
-		if (g_bPlayerConnected[i])
-		{
-			if (g_bCrackOldEspBox)
-			{
-				// make bad for very old esp boxes
-				rh_emit_sound2(id, i, chan, "player/die3.wav", VOL_NORM, ATTN_NORM);
-				// make bad for something new esp box
-				rh_emit_sound2(id, i, chan, "player/headshot1.wav", VOL_NORM, ATTN_NORM);
-				rh_emit_sound2(id, i, chan, "player/headshot2.wav", VOL_NORM, ATTN_NORM);
-			}
-			if (g_bSendMissingSound)
-			{
-				// try to crash ESP with missing sound
-				rh_emit_sound2(id, i, chan == CHAN_STREAM ? CHAN_VOICE : CHAN_STREAM, g_sMissingPath, VOL_NORM, ATTN_NORM);
-			}
-			// hide previous sounds
-			rh_emit_sound2(id, i, chan, g_sFakePath, VOL_NORM, ATTN_NORM);
-			rh_emit_sound2(id, i, chan, g_sFakePath, VOL_NORM, ATTN_NORM, SND_STOP);
-		}
+		// make bad for very old esp boxes
+		rh_emit_sound2(id, 0, chan, "player/die3.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, "player/headshot1.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, "player/headshot2.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
 	}
-	
+
+	if (g_bSendMissingSound)
+	{
+		// try to crash ESP with missing sound
+		rh_emit_sound2(id, 0, chan == CHAN_STREAM ? CHAN_VOICE : CHAN_STREAM, g_sMissingPath, VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+	}
+
+	if (g_bCrackOldEspBox)
+	{
+		rh_emit_sound2(id, 0, chan, g_sFakePath, chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, SND_STOP,_, SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, g_sFakePath, chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _, _, SND_EMIT2_NOPAS);
+	}
+
+
 	set_entvar(id, var_origin, vOrigin);
 }
 
