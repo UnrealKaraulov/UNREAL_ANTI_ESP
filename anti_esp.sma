@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.14";
+new PLUGIN_VERSION[] = "3.15";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -591,7 +591,6 @@ public plugin_precache()
 rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
-	//log_amx("RH_SV_StartSound_custom: %i %i %i %s %f %f %i %i %i %i", recipient, entity, channel, sample, vol, attn, flags, pitch, bForAll, iForceListener);
 	static Float:vecListener[3];
 	
 	for(new iListener = 1; iListener < MAX_PLAYERS + 1; iListener++)
@@ -756,12 +755,7 @@ public FM_EmitAmbientSound_pre(const entity, const Float:Origin[3], const sample
 public RH_SV_StartSound_pre(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
 {
 	static tmp_sample[64];
-
-	/*if (recipients > 100)
-	{
-		log_amx("RH_SV_StartSound_pre: %i %i %i %s %i %f %u %i", recipients, entity, channel, sample, volume, attenuation, fFlags, pitch);
-	}*/
-
+	
 	if (g_bDebugDumpAllSounds)
 	{
 		static tmp_section_name[256];
@@ -978,18 +972,17 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
 		return FMRES_IGNORED;
 
-	//log_amx("FM_PlaybackEvent_pre: %i %i %i %f %f %f %f %f %i %i %i %i %i %i %i %i", flags, invoker, eventid, delay, origin[0], origin[1], origin[2], angles[0], angles[1], angles[2], fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
-
 	for(new i = 0; i < sizeof(g_iEventIdx); i++)
 	{
 		if (g_iEventIdx[i] == eventid)
 		{
+			static Float:vEndAim[3];
+			get_user_aim_end(invoker,vEndAim);
+
 #if REAPI_VERSION < 526324
 			static Float:vOrigin[3];
-			static Float:vEndAim[3];
 
 			get_entvar(invoker,var_origin,vOrigin);
-			get_user_aim_end(invoker,vEndAim);
 #endif
 			
 			static bool:bIsVis[MAX_PLAYERS + 1];
@@ -1004,7 +997,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 					{
 						bIsVis[p] = true;
 #if REAPI_VERSION >= 526324
-						if (!rh_is_entity_fullpacked(invoker, p))
+						if (!rh_is_entity_fullpacked(invoker, p) && !fm_is_visible_re(p, vEndAim))
 #else 
 						if (!fm_is_visible_re(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
 #endif
@@ -1264,7 +1257,8 @@ stock get_user_aim_end(index, Float:vEnd[3])
 	xs_vec_mul_scalar(vTarget, 4096.0, vTarget);
 	xs_vec_add(vOrigin, vTarget, vTarget);
 
-	trace_line(index, vOrigin, vTarget, vEnd);
+	engfunc(EngFunc_TraceLine, vOrigin, vTarget, 0, index, 0);
+ 	get_tr2(0, TR_vecEndPos, vEnd);
 }
 
 stock get_user_aim_origin_and_dir(index, Float:vOrigin[3], Float:vDir[3])
