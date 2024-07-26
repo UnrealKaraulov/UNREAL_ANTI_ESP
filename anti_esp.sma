@@ -1,7 +1,6 @@
 #include <amxmodx>
 #include <reapi>
 #include <fakemeta>
-#include <engine>
 #include <xs>
 
 #include <easy_cfg>
