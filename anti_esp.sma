@@ -10,7 +10,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.13";
+new PLUGIN_VERSION[] = "3.14";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -91,7 +91,7 @@ new const g_sGunsSounds[][][] = {
 	{"weapons/mac10-1.wav", "weapons/mac10-1.wav"},
 	{"weapons/m249-1.wav", "weapons/m249-1.wav"},
 	{"weapons/m3-1.wav", "weapons/m3-1.wav"},
-	{"weapons/m4a1-1.wav", "weapons/m4a1_unsil-1.wav"},
+	{"weapons/m4a1_unsil-1.wav", "weapons/m4a1-1.wav"},
 	{"weapons/mp5-1.wav", "weapons/mp5-1.wav"},
 	{"weapons/p228-1.wav","weapons/p228-1.wav"},
 	{"weapons/p90-1.wav","weapons/p90-1.wav"},
@@ -100,7 +100,7 @@ new const g_sGunsSounds[][][] = {
 	{"weapons/sg552-1.wav","weapons/sg552-1.wav"},
 	{"weapons/tmp-1.wav","weapons/tmp-1.wav"},
 	{"weapons/ump45-1.wav","weapons/ump45-1.wav"},
-	{"weapons/usp1.wav","weapons/usp_unsil-1.wav"},
+	{"weapons/usp_unsil-1.wav", "weapons/usp1.wav"},
 	{"weapons/xm1014-1.wav","weapons/xm1014-1.wav"}
 };
 
@@ -592,6 +592,7 @@ public plugin_precache()
 rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
+	//log_amx("RH_SV_StartSound_custom: %i %i %i %s %f %f %i %i %i %i", recipient, entity, channel, sample, vol, attn, flags, pitch, bForAll, iForceListener);
 	static Float:vecListener[3];
 	
 	for(new iListener = 1; iListener < MAX_PLAYERS + 1; iListener++)
@@ -757,6 +758,11 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 {
 	static tmp_sample[64];
 
+	/*if (recipients > 100)
+	{
+		log_amx("RH_SV_StartSound_pre: %i %i %i %s %i %f %u %i", recipients, entity, channel, sample, volume, attenuation, fFlags, pitch);
+	}*/
+
 	if (g_bDebugDumpAllSounds)
 	{
 		static tmp_section_name[256];
@@ -803,7 +809,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		ArrayGetString(g_aReplacedSounds, snd, tmp_sample, charsmax(tmp_sample));
 		SetHookChainArg(4,ATYPE_STRING,tmp_sample)
 	}
-	else if (!g_bProcessAllSounds)
+	else if (!g_bProcessAllSounds && recipients < 100)
 	{
 		return HC_CONTINUE;
 	}
@@ -973,53 +979,59 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
 		return FMRES_IGNORED;
 
+	//log_amx("FM_PlaybackEvent_pre: %i %i %i %f %f %f %f %f %i %i %i %i %i %i %i %i", flags, invoker, eventid, delay, origin[0], origin[1], origin[2], angles[0], angles[1], angles[2], fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
+
 	for(new i = 0; i < sizeof(g_iEventIdx); i++)
 	{
 		if (g_iEventIdx[i] == eventid)
 		{
+#if REAPI_VERSION < 526324
 			static Float:vOrigin[3];
 			static Float:vEndAim[3];
 
 			get_entvar(invoker,var_origin,vOrigin);
 			get_user_aim_end(invoker,vEndAim);
-
-			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_IGNORE);
-			set_entvar(invoker,var_groupinfo, 1);
-
+#endif
+			
+			static bool:bIsVis[MAX_PLAYERS + 1];
+			
 			for(new p = 1; p < MAX_PLAYERS + 1; p++)
 			{
+				bIsVis[p] = false;
+
 				if (g_bPlayerConnected[p])
 				{
 					if (p != invoker)
 					{
-						set_entvar(p,var_groupinfo, 0);
-						if (!g_bPlayerBot[p])
-						{
-#if REAPI_VERSION > 524300
-							if (!CheckVisibilityInOrigin(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
+						bIsVis[p] = true;
+#if REAPI_VERSION >= 526324
+						if (!rh_is_entity_fullpacked(invoker, p))
 #else 
-							if (!fm_is_visible_re(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
+						if (!fm_is_visible_re(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
 #endif
+						{
+							bIsVis[p] = false;
+							if (g_iHideEventsMode == 1)
 							{
-								set_entvar(p,var_groupinfo, 1);
-								if (g_iHideEventsMode == 1)
-								{
-									// >100 = player offset
-									RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
-								}
+								// >100 = player offset
+								//rh_emit_sound2(invoker, p, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 1.0, ATTN_NORM, 0, PITCH_NORM, 0);
+								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, bParam1 || bParam2 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
 							}
 						}
-					}
-					else 
-					{
-						set_entvar(p,var_groupinfo, 1);
 					}
 				}
 			}
 
-			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_NAND);
-			engfunc(EngFunc_PlaybackEvent, flags, invoker, eventid, delay, origin, angles, fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
+			for(new p = 1; p < MAX_PLAYERS + 1; p++)
+			{
+				if (g_bPlayerConnected[p] || g_bPlayerBot[p])
+				{
+					set_entvar(p,var_groupinfo, bIsVis[p] || p == invoker ? 1 : 2);
+				}
+			}
+			
 			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_AND);
+			engfunc(EngFunc_PlaybackEvent, flags, invoker, eventid, delay, origin, angles, fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
 
 			for(new p = 1; p < MAX_PLAYERS + 1; p++)
 			{
