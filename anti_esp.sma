@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.16";
+new PLUGIN_VERSION[] = "3.17";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -970,7 +970,7 @@ public RG_CBasePlayer_Spawn_post(const id)
 	if(!is_user_alive(id))
 		return HC_CONTINUE;
 	
-	if (!g_bPlayerBot[id])
+	if (!g_bPlayerBot[id] && g_iProtectStatus == 0)
 		g_iProtectStatus = 1;
 	
 	new Float:delay = random_float(0.5,3.0);
