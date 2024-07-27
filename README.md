@@ -9,3 +9,4 @@ Features:
 1. Replaces sounds to fake names
 2. Emit fake sounds
 3. Volume distance based anti esp [New 2024 year protection level!]
+4. Hide weapon events [New 2024 year protection level!]
