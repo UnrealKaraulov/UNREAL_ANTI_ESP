@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.15";
+new PLUGIN_VERSION[] = "3.16";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 
@@ -399,6 +399,21 @@ public plugin_precache()
 	cfg_read_bool("general","USE_ORIGINAL_SOUND_PATHS", g_bUseOriginalSounds, g_bUseOriginalSounds);
 	cfg_read_bool("general","USE_ORIGINAL_ENTITY_AND_CHANNEL", g_bUseOriginalSource, g_bUseOriginalSource);
 	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds, g_bDebugDumpAllSounds);
+
+
+	// next block code for check readwrite access to cfg
+	new bool:test_read_write_cfg = !g_bDebugDumpAllSounds;
+
+	cfg_write_bool("general","DEBUG_DUMP_ALL_SOUNDS", test_read_write_cfg);
+	cfg_read_bool("general","DEBUG_DUMP_ALL_SOUNDS", test_read_write_cfg, test_read_write_cfg);
+	cfg_write_bool("general","DEBUG_DUMP_ALL_SOUNDS", g_bDebugDumpAllSounds);
+
+	if (test_read_write_cfg == g_bDebugDumpAllSounds)
+	{
+		log_error(AMX_ERR_MEMACCESS, "Can't read/write cfg. Please reinstall server with needed access.");
+		set_fail_state("Can't read/write cfg. Please reinstall server with needed access.");
+		return;
+	}
 
 	static tmp_sound[64];
 	static tmp_arg[64];
@@ -1029,7 +1044,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 			{
 				if (g_bPlayerConnected[p] || g_bPlayerBot[p])
 				{
-					set_entvar(invoker,var_groupinfo, 0);
+					set_entvar(p,var_groupinfo, 0);
 				}
 			}
 
