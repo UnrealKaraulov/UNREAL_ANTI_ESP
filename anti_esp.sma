@@ -3,6 +3,7 @@
 #include <fakemeta>
 #include <xs>
 
+#define _easy_cfg_internal
 #include <easy_cfg>
 
 
