@@ -6,20 +6,17 @@
 #define _easy_cfg_internal
 #include <easy_cfg>
 
-
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.18";
+new PLUGIN_VERSION[] = "3.19";
 new PLUGIN_AUTHOR[] = "Karaulov";
-
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
 #define GROUP_OP_IGNORE 2
 
 #define MAX_CHANNEL CHAN_STREAM
-new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
 
 new g_sSoundClassname[64] = "info_target";
 new g_sFakePath[64] = "player/pl_step5.wav";
@@ -75,7 +72,6 @@ new const g_sGunsEvents[][] = {
 	"events/sg550.sc", "events/sg552.sc", "events/tmp.sc", "events/ump45.sc", 
 	"events/usp.sc", "events/xm1014.sc"
 };
-
 new const g_sGunsSounds[][][] = {
 	{"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
 	{"weapons/aug-1.wav", "weapons/aug-1.wav"},
@@ -105,6 +101,7 @@ new const g_sGunsSounds[][][] = {
 };
 
 new g_iEventIdx[sizeof(g_sGunsEvents)] = {0,...};
+new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
 
 public plugin_init()
 {
@@ -161,9 +158,9 @@ public fill_entity_and_channel(id, channel)
 	if (g_iCurChannel > MAX_CHANNEL)
 	{
 		g_iCurChannel = 1;
-		g_iCurEnt++;
 		if (ArraySize(g_aSoundEnts) < g_iMaxEntsForSounds)
 		{
+			g_iCurEnt++;
 			new iSndEnt = rg_create_entity("info_target");
 			if (is_nullent(iSndEnt))
 			{
@@ -191,12 +188,23 @@ public fill_entity_and_channel(id, channel)
 			}
 			else 
 			{
-				g_iCurEnt = 0;
+				g_iCurEnt++;
+				if (g_iCurEnt >= ArraySize(g_aSoundEnts))
+				{
+					g_iCurEnt = 0;
+				}
 			}
 		}
 	}
 
-	g_iChannelReplacement[id][channel] = PackChannelEnt(g_iCurChannel,g_iCurEnt);
+	if (g_bRepeatChannelMode)
+	{
+		g_iChannelReplacement[id][channel] = PackChannelEnt(g_iCurChannel,g_iCurEnt);
+	}
+	else 
+	{
+		g_iChannelReplacement[id][channel] = PackChannelEnt(g_iCurChannel, ArraySize(g_aSoundEnts) - 1);
+	}
 	return g_iChannelReplacement[id][channel];
 }
 
@@ -762,7 +770,6 @@ public FM_EmitAmbientSound_pre(const entity, const Float:Origin[3], const sample
 		cfg_write_str(tmp_section_name,tmp_debug,tmp_debug2);
 	}
 
-
 	new snd = ArrayFindString(g_aOriginalSounds, sample);
 	if (snd >= 0)
 	{
@@ -924,6 +931,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
+	server_print("skip5 %i = %i [%s] = [%s] %i = %i", entity, new_ent, sample, tmp_sample, channel, new_chan);
 	rg_emit_sound_custom(new_ent, entity, new_chan, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
 	return HC_BREAK;
 }
