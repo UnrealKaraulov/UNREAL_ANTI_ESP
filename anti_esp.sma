@@ -931,7 +931,6 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
-	server_print("skip5 %i = %i [%s] = [%s] %i = %i", entity, new_ent, sample, tmp_sample, channel, new_chan);
 	rg_emit_sound_custom(new_ent, entity, new_chan, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
 	return HC_BREAK;
 }
