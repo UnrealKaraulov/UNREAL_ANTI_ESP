@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.19";
+new PLUGIN_VERSION[] = "3.20";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define GROUP_OP_AND  0
@@ -141,8 +141,6 @@ public plugin_init()
 	}
 }
 
-new bool:one_time_channel_warn = true;
-
 public fill_entity_and_channel(id, channel)
 {
 	if (channel > MAX_CHANNEL || channel <= 0 || g_bUseOriginalSource)
@@ -176,15 +174,11 @@ public fill_entity_and_channel(id, channel)
 		{
 			if (!g_bRepeatChannelMode)
 			{
-				if (one_time_channel_warn)
-				{
-					one_time_channel_warn = false;
-					log_error(AMX_ERR_BOUNDS, "Need more sound entities! Entities count auto increased in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
-					g_iMaxEntsForSounds++;
-					log_amx("Changed max_ents_for_sounds from %i to %i in unreal_anti_esp.cfg", g_iMaxEntsForSounds - 1, g_iMaxEntsForSounds);
-					cfg_write_int("general","max_ents_for_sounds",g_iMaxEntsForSounds);
-					return 0;
-				}
+				log_error(AMX_ERR_BOUNDS, "Need more sound entities! Entities count auto increased in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
+				g_iMaxEntsForSounds++;
+				log_amx("Changed max_ents_for_sounds from %i to %i in unreal_anti_esp.cfg", g_iMaxEntsForSounds - 1, g_iMaxEntsForSounds);
+				cfg_write_int("general","max_ents_for_sounds",g_iMaxEntsForSounds);
+				return 0;
 			}
 			else 
 			{
