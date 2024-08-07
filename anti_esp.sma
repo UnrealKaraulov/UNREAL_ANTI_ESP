@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.21";
+new PLUGIN_VERSION[] = "3.22";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define GROUP_OP_AND  0
@@ -251,23 +251,35 @@ public InitDefaultSoundArray()
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade2.wav");
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade3.wav");
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade4.wav");
-
-	new rnd_str[64];
-
-	if (g_bReinstallNewSounds)
+	
+	if (g_bUseOriginalSounds && !g_bProcessAllSounds)
 	{
 		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 		{
-			RandomSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
-			ArrayPushString(g_aReplacedSounds, rnd_str);
+			new orig_snd[64];
+			ArrayGetString(g_aOriginalSounds,i,orig_snd,charsmax(orig_snd));
+			ArrayPushString(g_aReplacedSounds, orig_snd);
 		}
 	}
 	else 
 	{
-		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
+		new rnd_str[64];
+
+		if (g_bReinstallNewSounds)
 		{
-			StandSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
-			ArrayPushString(g_aReplacedSounds, rnd_str);
+			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
+			{
+				RandomSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
+				ArrayPushString(g_aReplacedSounds, rnd_str);
+			}
+		}
+		else 
+		{
+			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
+			{
+				StandSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
+				ArrayPushString(g_aReplacedSounds, rnd_str);
+			}
 		}
 	}
 }
@@ -297,7 +309,7 @@ public client_putinserver(id)
 public client_disconnected(id)
 {
 	g_bPlayerConnected[id] = false;
-	
+
 	if (task_exists(id))
 	{
 		remove_task(id);
@@ -390,6 +402,8 @@ public plugin_precache()
 	cfg_read_bool("general","send_missing_sound", g_bSendMissingSound, g_bSendMissingSound);
 	cfg_read_str("general","ent_classname",g_sSoundClassname,g_sSoundClassname,charsmax(g_sSoundClassname));
 	cfg_read_int("general","max_ents_for_sounds", g_iMaxEntsForSounds, g_iMaxEntsForSounds);
+	if (g_iMaxEntsForSounds == 0)
+		g_iMaxEntsForSounds = 1; // one default
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
 	cfg_read_bool("general","reinstall_with_new_sounds", g_bReinstallNewSounds, g_bReinstallNewSounds);
@@ -595,12 +609,7 @@ public plugin_precache()
 
 	if (g_bUseOriginalSounds)
 	{
-		log_amx("Warning! Using original sound paths! [No sound will be replaced]");
-		if (!g_bProcessAllSounds)
-		{
-			log_error(AMX_ERR_GENERAL, "Warning! Found conflict USE_ORIGINAL_SOUND_PATHS and process_all_sounds options!");
-			set_fail_state("process_all_sounds disabled, no sound for replace.");
-		}
+		log_amx("Warning! Using original sound paths! [No sound paths will be replaced]");
 	}
 
 	if (ArraySize(g_aReplacedSounds) <= 1 && !g_bProcessAllSounds && !g_bUseOriginalSounds)
