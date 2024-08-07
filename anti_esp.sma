@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.20";
+new PLUGIN_VERSION[] = "3.21";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 #define GROUP_OP_AND  0
@@ -603,7 +603,7 @@ public plugin_precache()
 		}
 	}
 
-	if (ArraySize(g_aReplacedSounds) <= 1 && !g_bProcessAllSounds)
+	if (ArraySize(g_aReplacedSounds) <= 1 && !g_bProcessAllSounds && !g_bUseOriginalSounds)
 	{
 		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",g_sConfigPath);
 		set_fail_state("no sounds for replace.");
