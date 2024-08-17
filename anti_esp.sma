@@ -9,8 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.22";
+new PLUGIN_VERSION[] = "3.23";
 new PLUGIN_AUTHOR[] = "Karaulov";
+
+new const config_version = 1;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -37,15 +39,16 @@ new bool:g_bUseOriginalSource = false;
 #if REAPI_VERSION > 524300
 new bool:g_bSkipPAS = false;
 #endif
-new bool:g_bProcessAllSounds = false;
+new bool:g_bProcessAllSounds = true;
 new bool:g_bDebugDumpAllSounds = false;
+new bool:g_bUseUnsafeStreamChannel = false;
 
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
 new g_iFakeEnt = 0;
 new g_iReplaceSounds = 0;
-new g_iMaxEntsForSounds = 13;
-new g_iHideEventsMode = 0;
+new g_iMaxEntsForSounds = 20;
+new g_iHideEventsMode = 1;
 new g_iFakeSoundMode = 1;
 new g_iProtectStatus = 0;
 
@@ -153,7 +156,7 @@ public fill_entity_and_channel(id, channel)
 	}	
 	
 	g_iCurChannel++;
-	if (g_iCurChannel > MAX_CHANNEL)
+	if (g_iCurChannel > MAX_CHANNEL || (!g_bUseUnsafeStreamChannel && g_iCurChannel == CHAN_STREAM))
 	{
 		g_iCurChannel = 1;
 		if (ArraySize(g_aSoundEnts) < g_iMaxEntsForSounds)
@@ -174,6 +177,7 @@ public fill_entity_and_channel(id, channel)
 		{
 			if (!g_bRepeatChannelMode)
 			{
+				cfg_set_path("plugins/unreal_anti_esp.cfg");
 				log_error(AMX_ERR_BOUNDS, "Need more sound entities! Entities count auto increased in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
 				g_iMaxEntsForSounds++;
 				log_amx("Changed max_ents_for_sounds from %i to %i in unreal_anti_esp.cfg", g_iMaxEntsForSounds - 1, g_iMaxEntsForSounds);
@@ -396,6 +400,16 @@ public plugin_precache()
 	g_aPrecachedSounds = ArrayCreate();
 	g_aSoundEnts = ArrayCreate();
 
+	new cur_config_version = 0;
+	cfg_read_int("general", "config_version", cur_config_version, cur_config_version);
+
+	if (cur_config_version != config_version)
+	{
+		log_amx("Create new config, because version changed from %i to %i", cur_config_version, config_version);
+		cfg_clear();
+		cfg_write_int("general", "config_version", config_version);
+	}
+
 	cfg_read_str("general","fake_path",g_sFakePath,g_sFakePath,charsmax(g_sFakePath));
 	cfg_read_str("general","missing_path",g_sMissingPath,g_sMissingPath,charsmax(g_sMissingPath));
 	cfg_read_int("general","enable_fake_sounds", g_iFakeSoundMode, g_iFakeSoundMode);
@@ -405,6 +419,7 @@ public plugin_precache()
 	if (g_iMaxEntsForSounds == 0)
 		g_iMaxEntsForSounds = 1; // one default
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
+	cfg_read_bool("general","use_unsafe_stream_channel", g_bUseUnsafeStreamChannel, g_bUseUnsafeStreamChannel);
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
 	cfg_read_bool("general","reinstall_with_new_sounds", g_bReinstallNewSounds, g_bReinstallNewSounds);
 	cfg_read_bool("general","crack_old_esp_box", g_bCrackOldEspBox, g_bCrackOldEspBox);
@@ -412,7 +427,6 @@ public plugin_precache()
 	cfg_read_flt("general","volume_range_dist", g_fRangeBasedDist, g_fRangeBasedDist);
 	cfg_read_flt("general","cut_off_sound_dist", g_fMaxSoundDist * 1.5, g_fMaxSoundDist);
 	cfg_read_flt("general","cut_off_sound_vol", g_fMinSoundVolume, g_fMinSoundVolume);
-//	cfg_read_bool("general","replace_sound_for_all_ents", g_bReplaceSoundForAll, g_bReplaceSoundForAll);
 	cfg_read_bool("general","antiesp_for_bots", g_bAntiespForBots, g_bAntiespForBots);
 	cfg_read_int("general","hide_weapon_events", g_iHideEventsMode, g_iHideEventsMode);
 	cfg_read_bool("general","process_all_sounds", g_bProcessAllSounds, g_bProcessAllSounds);
@@ -579,10 +593,10 @@ public plugin_precache()
 	log_amx(" g_sFakePath = %s (fake sound path)", g_sFakePath);
 	log_amx(" g_sMissingPath = %s (missing sound path)", g_sMissingPath);
 	log_amx(" g_bRepeatChannelMode = %i (loop mode)", g_bRepeatChannelMode);
+	log_amx(" g_bUseUnsafeStreamChannel = %i (use unsafe CHAN_STREAM)", g_bUseUnsafeStreamChannel);
 	log_amx(" g_bGiveSomeRandom = %i (adds more random to more protect)", g_bGiveSomeRandom);
 	log_amx(" g_iReplaceSounds = %i (how many sounds to replace)", g_iReplaceSounds);
 	log_amx(" g_bCrackOldEspBox = %i (cracks old esp box)", g_bCrackOldEspBox);
-//	log_amx(" g_bReplaceSoundForAll = %i (replaces sound for all ents)", g_bReplaceSoundForAll);
 	log_amx(" g_bAntiespForBots = %i (enable antiesp for bots)", g_bAntiespForBots);
 	log_amx(" g_bVolumeRangeBased = %i (uses volume based on distance)", g_bVolumeRangeBased);
 	log_amx(" g_fRangeBasedDist = %f (distance for volume based mode)", g_fRangeBasedDist);
@@ -658,8 +672,6 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			if (!g_bVolumeRangeBased || originalDistance < g_fRangeBasedDist + fSomeRandom)
 			{
 				set_entvar(entity, var_origin, vecSource);
-				if (channel == CHAN_STREAM)
-					rh_emit_sound2(entity, iListener, channel, sample, vol, attn, SND_STOP, pitch, emitFlags, vecSource);
 				rh_emit_sound2(entity, iListener, channel, sample, vol, attn, flags, pitch, emitFlags, vecSource);
 				continue;
 			}
@@ -747,6 +759,7 @@ public FM_EmitAmbientSound_pre(const entity, const Float:Origin[3], const sample
 		get_mapname(tmp_debug,charsmax(tmp_debug));
 		formatex(tmp_section_name,charsmax(tmp_section_name),"DEBUG_MAP_AMBIENTS_%s", tmp_debug);
 
+		cfg_set_path("plugins/unreal_anti_esp.cfg");
 
 		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_sample", entity);
 		formatex(tmp_debug2,charsmax(tmp_debug2),"%s", sample);
@@ -798,6 +811,8 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		formatex(tmp_section_name,charsmax(tmp_section_name),"DEBUG_MAP_%s", tmp_debug);
 
 		static tmp_debug2[256];
+
+		cfg_set_path("plugins/unreal_anti_esp.cfg");
 		
 		formatex(tmp_debug,charsmax(tmp_debug),"entity_%i_channel", entity);
 		formatex(tmp_debug2,charsmax(tmp_debug2),"%i", channel);
