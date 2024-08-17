@@ -694,8 +694,6 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 				continue;
 			
 			set_entvar(entity, var_origin, vecFakeSound);
-			if (channel == CHAN_STREAM)
-				rh_emit_sound2(entity, iListener, channel, sample, new_vol, attn, SND_STOP, pitch, emitFlags, vecFakeSound);
 			rh_emit_sound2(entity, iListener, channel, sample, new_vol, attn, flags, pitch, emitFlags, vecFakeSound);
 		}
 	}
