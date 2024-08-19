@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.24";
+new PLUGIN_VERSION[] = "3.25";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 2;
@@ -44,6 +44,7 @@ new bool:g_bDebugDumpAllSounds = false;
 new bool:g_bUseUnsafeStreamChannel = false;
 
 new g_iEnabled = 1;
+//new g_iDebugCvar = 0;
 new g_bEnabledWarn = false;
 
 new g_iCurEnt = 0;
@@ -374,7 +375,9 @@ public plugin_end()
 public plugin_precache()
 {
 	cfg_set_path("plugins/unreal_anti_esp.cfg");
+
 	bind_pcvar_num(register_cvar("antiesp_enabled", "1", FCVAR_SERVER, 1.0),g_iEnabled);
+	//bind_pcvar_num(register_cvar("antiesp_debug_val", "0", FCVAR_SERVER, 0.0),g_iDebugCvar);
 	
 	new tmp_cfgdir[512];
 	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
@@ -1079,7 +1082,10 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 							bIsVis[p] = false;
 							if (g_iHideEventsMode == 1)
 							{
-								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, (i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], bParam1 || bParam2 ? 125 : 255, ATTN_NORM, 0, PITCH_NORM);
+								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, 
+								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0]
+								, 255,
+								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? 1.4 : 0.52, 0, 94 + random(16));
 							}
 						}
 					}
