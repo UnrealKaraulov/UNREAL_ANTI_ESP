@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.25";
+new PLUGIN_VERSION[] = "3.26";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 2;
@@ -706,15 +706,21 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			new Float:dist_mult = attn / SOUND_NOMINAL_CLIP_DIST;
 			new Float:flvol = vol;
 			new Float:new_vol = flvol * (1.0 - (originalDistance * dist_mult)) / (1.0 - (xs_vec_len(direction) * dist_mult));
+			new Float:new_attn = attn * (new_vol/vol);
 
 			/* bypass errors */
 			if (new_vol > flvol)
 				new_vol = flvol;
-			if (new_vol <= 0)
+			if (new_vol <= g_fMinSoundVolume)
 				continue;
 			
+			if (new_attn < 0.001)
+				new_attn = 0.001;
+			else if (new_attn > 3.999)
+				new_attn = 3.999;
+
 			set_entvar(entity, var_origin, vecFakeSound);
-			rh_emit_sound2(entity, iListener, channel, sample, new_vol, attn, flags, pitch, emitFlags, vecFakeSound);
+			rh_emit_sound2(entity, iListener, channel, sample, new_vol, new_attn, flags, pitch, emitFlags, vecFakeSound);
 		}
 	}
 
