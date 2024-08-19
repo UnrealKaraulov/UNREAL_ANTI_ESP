@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.23";
+new PLUGIN_VERSION[] = "3.24";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 1;
+new const config_version = 2;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -43,21 +43,24 @@ new bool:g_bProcessAllSounds = true;
 new bool:g_bDebugDumpAllSounds = false;
 new bool:g_bUseUnsafeStreamChannel = false;
 
+new g_iEnabled = 1;
+new g_bEnabledWarn = false;
+
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
 new g_iFakeEnt = 0;
 new g_iReplaceSounds = 0;
 new g_iMaxEntsForSounds = 20;
 new g_iHideEventsMode = 1;
-new g_iFakeSoundMode = 1;
+new g_iFakeSoundMode = 2;
 new g_iProtectStatus = 0;
 
 /* from engine constants */
 #define SOUND_NOMINAL_CLIP_DIST 1000.0
 
-new Float:g_fMaxSoundDist = SOUND_NOMINAL_CLIP_DIST;
+new Float:g_fMaxSoundDist = 1500.0;
 new Float:g_fRangeBasedDist = 64.0;
-new Float:g_fMinSoundVolume = 0.006;
+new Float:g_fMinSoundVolume = 0.004;
 
 new Float:g_fFakeTime = 0.0;
 
@@ -313,7 +316,8 @@ public client_putinserver(id)
 public client_disconnected(id)
 {
 	g_bPlayerConnected[id] = false;
-
+	g_bPlayerBot[id] = false;
+	
 	if (task_exists(id))
 	{
 		remove_task(id);
@@ -370,6 +374,7 @@ public plugin_end()
 public plugin_precache()
 {
 	cfg_set_path("plugins/unreal_anti_esp.cfg");
+	bind_pcvar_num(register_cvar("antiesp_enabled", "1", FCVAR_SERVER, 1.0),g_iEnabled);
 	
 	new tmp_cfgdir[512];
 	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
@@ -526,7 +531,7 @@ public plugin_precache()
 		}
 	}
 
-	if (g_iFakeSoundMode > 0)
+	if (g_iFakeSoundMode > 0 || g_bCrackOldEspBox)
 	{
 		if (!sound_exists(g_sFakePath))
 		{
@@ -630,6 +635,11 @@ public plugin_precache()
 	{
 		log_error(AMX_ERR_GENERAL, "Warning! Found no sounds for replace! Please check config : %s",g_sConfigPath);
 		set_fail_state("no sounds for replace.");
+	}
+
+	if (g_iEnabled == 0 && !g_bEnabledWarn)
+	{
+		log_amx("[WARNING] Anti-esp is disabled. Please check cvar 'antiesp_enabled'.");
 	}
 
 	log_amx("Config path: %s",g_sConfigPath);
@@ -852,6 +862,16 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		return HC_CONTINUE;
 	}
 
+	if (g_iEnabled == 0)
+	{
+		if (!g_bEnabledWarn)
+		{
+			g_bEnabledWarn = true;
+			log_amx("[WARNING] Anti-esp is disabled. Please check cvar 'antiesp_enabled'.");
+		}
+		return HC_CONTINUE;
+	}
+
 	if (entity > MAX_PLAYERS || entity < 1)
 	{
 		return HC_CONTINUE;
@@ -876,7 +896,6 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		if (get_gametime() - g_fFakeTime > 0.1)
 		{
 			g_fFakeTime = get_gametime();
-
 			vOrigin_fake[0] = floatclamp(vOrigin[0] + random_float(200.0,700.0),-8190.0,8190.0);
 			vOrigin_fake[1] = floatclamp(vOrigin[1] - random_float(200.0,700.0),-8190.0,8190.0);
 			vOrigin_fake[2] = floatclamp(vOrigin[2] + random_float(0.0,15.0),-8190.0,8190.0);
@@ -974,9 +993,9 @@ public send_bad_sound(id)
 	if (g_bCrackOldEspBox)
 	{
 		// make bad for very old esp boxes
-		rh_emit_sound2(id, 0, chan, "player/die3.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
-		rh_emit_sound2(id, 0, chan, "player/headshot1.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
-		rh_emit_sound2(id, 0, chan, "player/headshot2.wav", chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, "player/die3.wav", random_float(0.004,0.01), ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, "player/headshot1.wav", random_float(0.004,0.01), ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, "player/headshot2.wav", random_float(0.004,0.01), ATTN_NORM, _ ,_ , SND_EMIT2_NOPAS);
 	}
 
 	if (g_bSendMissingSound)
@@ -987,8 +1006,8 @@ public send_bad_sound(id)
 
 	if (g_bCrackOldEspBox)
 	{
-		rh_emit_sound2(id, 0, chan, g_sFakePath, chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, SND_STOP,_, SND_EMIT2_NOPAS);
-		rh_emit_sound2(id, 0, chan, g_sFakePath, chan == CHAN_STREAM ? 0.001 : VOL_NORM, ATTN_NORM, _, _, SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, g_sFakePath, VOL_NORM, ATTN_NORM, SND_STOP,_, SND_EMIT2_NOPAS);
+		rh_emit_sound2(id, 0, chan, g_sFakePath, VOL_NORM, ATTN_NORM, _, _, SND_EMIT2_NOPAS);
 	}
 
 
@@ -1011,6 +1030,16 @@ public RG_CBasePlayer_Spawn_post(const id)
 
 public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3], Float:angles[3], Float:fparam1, Float:fparam2, iParam1, iParam2, bParam1, bParam2)
 {
+	if (g_iEnabled == 0)
+	{
+		if (!g_bEnabledWarn)
+		{
+			g_bEnabledWarn = true;
+			log_amx("[WARNING] Anti-esp is disabled. Please check cvar 'antiesp_enabled'.");
+		}
+		return FMRES_IGNORED;
+	}
+
 	if (invoker < 1 || invoker > MAX_PLAYERS || flags & FEV_HOSTONLY)
 		return FMRES_IGNORED;
 
@@ -1050,9 +1079,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 							bIsVis[p] = false;
 							if (g_iHideEventsMode == 1)
 							{
-								// >100 = player offset
-								//rh_emit_sound2(invoker, p, CHAN_WEAPON, bParam1 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 1.0, ATTN_NORM, 0, PITCH_NORM, 0);
-								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, bParam1 || bParam2 ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], 255, ATTN_NORM, 0, PITCH_NORM);
+								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, (i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0], bParam1 || bParam2 ? 125 : 255, ATTN_NORM, 0, PITCH_NORM);
 							}
 						}
 					}
