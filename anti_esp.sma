@@ -79,6 +79,13 @@ new const g_sGunsEvents[][] = {
 	"events/sg550.sc", "events/sg552.sc", "events/tmp.sc", "events/ump45.sc", 
 	"events/usp.sc", "events/xm1014.sc"
 };
+
+new const Float:g_fGunAttns[] = {
+	0.4, 0.48, 0.28, 0.6, ATTN_NORM, ATTN_NORM, 0.48, ATTN_NORM,
+	0.4, 0.4, 0.8, 0.72, 0.52, 0.48, 0.52, 0.64, ATTN_NORM, 0.64,
+	1.6, 0.4, 0.4, 1.6, 0.64, 0.52, 0.52
+}
+
 new const g_sGunsSounds[][][] = {
 	{"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
 	{"weapons/aug-1.wav", "weapons/aug-1.wav"},
@@ -1085,7 +1092,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, 
 								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0]
 								, 255,
-								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? 1.4 : 0.52, 0, 94 + random(16));
+								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? 1.4 : g_fGunAttns[i], 0, 94 + random(16));
 							}
 						}
 					}
