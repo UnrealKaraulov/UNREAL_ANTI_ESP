@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.27";
+new PLUGIN_VERSION[] = "3.28";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 3;
@@ -164,7 +164,7 @@ public fill_entity_and_channel(id, channel)
 
 	if (g_bUseOriginalSource || id > MaxClients)
 	{
-		return PackChannelEnt(channel,id);
+		return 0;
 	}
 
 	if (!g_bRepeatChannelMode)
@@ -757,9 +757,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 		}
 	}
 
-	
-
-	if (g_bUseOriginalSource)
+	if (g_bUseOriginalSource || entity == recipient)
 		set_entvar(entity, var_origin, vecSource);
 	else 
 	{
@@ -935,10 +933,6 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	get_entvar(entity,var_origin, vOrigin);
 	
 	new pack_ent_chan = fill_entity_and_channel(entity, channel);
-	if (pack_ent_chan == 0)
-	{
-		return HC_CONTINUE;
-	}
 	
 	static Float:vOrigin_fake[3];
 	if (g_iFakeSoundMode == 1)
@@ -980,7 +974,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	new new_chan;
 	new new_ent;
 
-	if (g_bUseOriginalSource || entity > MaxClients)
+	if (pack_ent_chan == 0)
 	{
 		new_chan = channel;
 		new_ent = entity;
