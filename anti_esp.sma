@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.28";
+new PLUGIN_VERSION[] = "3.29";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 3;
@@ -985,7 +985,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		new_ent = ArrayGetCell(g_aSoundEnts,UnpackEntId(pack_ent_chan));
 	}
 
-	if (new_ent <= get_maxplayers() && !g_bUseOriginalSource)
+	if (new_ent <= get_maxplayers() && !g_bUseOriginalSource && new_ent != entity)
 	{
 		log_error(AMX_ERR_BOUNDS,"Failed to unpack entity [%i] or channel [%i] from packed value. [max players = %i]!", new_ent, new_chan, get_maxplayers());
 		set_fail_state("Failed to unpack entity or channel! Please check error log and config : %s", g_sConfigPath);
