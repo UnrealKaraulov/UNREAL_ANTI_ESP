@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.26";
+new PLUGIN_VERSION[] = "3.27";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 2;
+new const config_version = 3;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -28,7 +28,7 @@ new g_sConfigPath[512];
 new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bPlayerBot[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bRepeatChannelMode = false;
-new bool:g_bGiveSomeRandom = false;
+new bool:g_bGiveSomeRandom = true;
 new bool:g_bReinstallNewSounds = false;
 new bool:g_bAntiespForBots = true;
 new bool:g_bCrackOldEspBox = true;
@@ -47,6 +47,8 @@ new g_iEnabled = 1;
 //new g_iDebugCvar = 0;
 new g_bEnabledWarn = false;
 
+new g_iHardEntityUsageLimit = 32;
+
 new g_iCurEnt = 0;
 new g_iCurChannel = 0;
 new g_iFakeEnt = 0;
@@ -60,7 +62,7 @@ new g_iProtectStatus = 0;
 #define SOUND_NOMINAL_CLIP_DIST 1000.0
 
 new Float:g_fMaxSoundDist = 1500.0;
-new Float:g_fRangeBasedDist = 64.0;
+new Float:g_fRangeBasedDist = 101.0;
 new Float:g_fMinSoundVolume = 0.004;
 
 new Float:g_fFakeTime = 0.0;
@@ -146,7 +148,7 @@ public plugin_init()
 	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_pre", false);
 	register_forward(FM_EmitAmbientSound, "FM_EmitAmbientSound_pre", false)
 	
-	for (new i = 0; i <= MAX_PLAYERS; i++) 
+	for (new i = 0; i <= MaxClients; i++) 
 	{
 		for (new j = 0; j <= MAX_CHANNEL; j++) 
 		{
@@ -157,8 +159,13 @@ public plugin_init()
 
 public fill_entity_and_channel(id, channel)
 {
-	if (channel > MAX_CHANNEL || channel <= 0 || g_bUseOriginalSource)
+	if (channel > MAX_CHANNEL || channel <= 0 || id < 0)
 		return 0;
+
+	if (g_bUseOriginalSource || id > MaxClients)
+	{
+		return PackChannelEnt(channel,id);
+	}
 
 	if (!g_bRepeatChannelMode)
 	{
@@ -188,9 +195,14 @@ public fill_entity_and_channel(id, channel)
 		{
 			if (!g_bRepeatChannelMode)
 			{
+				g_iMaxEntsForSounds++;
+				if (g_iMaxEntsForSounds > g_iHardEntityUsageLimit)
+				{
+					g_iMaxEntsForSounds = g_iHardEntityUsageLimit;
+					return 0;
+				}
 				cfg_set_path("plugins/unreal_anti_esp.cfg");
 				log_error(AMX_ERR_BOUNDS, "Need more sound entities! Entities count auto increased in unreal_anti_esp.cfg[this can fix not hearing sounds]\n");
-				g_iMaxEntsForSounds++;
 				log_amx("Changed max_ents_for_sounds from %i to %i in unreal_anti_esp.cfg", g_iMaxEntsForSounds - 1, g_iMaxEntsForSounds);
 				cfg_write_int("general","max_ents_for_sounds",g_iMaxEntsForSounds);
 				return 0;
@@ -425,14 +437,24 @@ public plugin_precache()
 		cfg_write_int("general", "config_version", config_version);
 	}
 
+
 	cfg_read_str("general","fake_path",g_sFakePath,g_sFakePath,charsmax(g_sFakePath));
 	cfg_read_str("general","missing_path",g_sMissingPath,g_sMissingPath,charsmax(g_sMissingPath));
 	cfg_read_int("general","enable_fake_sounds", g_iFakeSoundMode, g_iFakeSoundMode);
 	cfg_read_bool("general","send_missing_sound", g_bSendMissingSound, g_bSendMissingSound);
 	cfg_read_str("general","ent_classname",g_sSoundClassname,g_sSoundClassname,charsmax(g_sSoundClassname));
 	cfg_read_int("general","max_ents_for_sounds", g_iMaxEntsForSounds, g_iMaxEntsForSounds);
+	cfg_read_int("general","HARD_ENTITY_USAGE_LIMIT", g_iHardEntityUsageLimit, g_iHardEntityUsageLimit);
+
+	if (g_iMaxEntsForSounds > g_iHardEntityUsageLimit)
+	{
+		g_iMaxEntsForSounds = g_iHardEntityUsageLimit;
+		cfg_write_int("general","max_ents_for_sounds", g_iMaxEntsForSounds);
+	}
+
 	if (g_iMaxEntsForSounds == 0)
 		g_iMaxEntsForSounds = 1; // one default
+	
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
 	cfg_read_bool("general","use_unsafe_stream_channel", g_bUseUnsafeStreamChannel, g_bUseUnsafeStreamChannel);
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
@@ -636,6 +658,17 @@ public plugin_precache()
 		log_amx("Warning! Dumping all sounds!");
 	}
 
+	if (g_fRangeBasedDist < 32.0)
+	{
+		log_error(AMX_ERR_GENERAL, "Warning! Range based distance too small! Please check volume_range_dist in cfg.");
+		g_fRangeBasedDist = 32.0;
+	}
+	else if (g_fRangeBasedDist > 512.0)
+	{
+		log_error(AMX_ERR_GENERAL, "Warning! Range based distance too big! Please check volume_range_dist in cfg.");
+		g_fRangeBasedDist = 512.0;
+	}
+
 	if (g_bUseOriginalSounds)
 	{
 		log_amx("Warning! Using original sound paths! [No sound paths will be replaced]");
@@ -660,7 +693,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 {
 	static Float:vecListener[3];
 	
-	for(new iListener = 1; iListener < MAX_PLAYERS + 1; iListener++)
+	for(new iListener = 1; iListener <= MaxClients; iListener++)
 	{
 		if (g_bPlayerConnected[iListener] && (bForAll || iListener != recipient))
 		{
@@ -686,7 +719,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			new Float:fSomeRandom = 0.0;
 			if (g_bGiveSomeRandom)
 			{
-				fSomeRandom = random_float(0.0, g_fRangeBasedDist * 1.5) - g_fRangeBasedDist / 3.0;
+				fSomeRandom = random_float(g_fRangeBasedDist / 1.25, g_fRangeBasedDist * 1.5);
 			}
 
 			if (!g_bVolumeRangeBased || originalDistance < g_fRangeBasedDist + fSomeRandom)
@@ -760,7 +793,7 @@ emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch,
 	{
 		set_entvar(g_iFakeEnt,var_origin,origin);
 
-		for(new i = 1; i < MAX_PLAYERS + 1; i++)
+		for(new i = 1; i <= MaxClients; i++)
 		{
 			if (g_bPlayerConnected[i])
 			{
@@ -883,16 +916,17 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		if (!g_bEnabledWarn)
 		{
 			g_bEnabledWarn = true;
-			log_amx("[WARNING] Anti-esp is disabled. Please check cvar 'antiesp_enabled'.");
+			log_amx("[WARNING] Anti-esp distance based is disabled. Please check cvar 'antiesp_enabled'.");
 		}
 		return HC_CONTINUE;
 	}
 
-	if (entity > MAX_PLAYERS || entity < 1)
+	if (entity < 0)
 	{
 		return HC_CONTINUE;
 	}
-	else if (g_bPlayerBot[entity] && !g_bAntiespForBots)
+
+	if (entity <= MaxClients && g_bPlayerBot[entity] && !g_bAntiespForBots)
 	{
 		return HC_CONTINUE;
 	}
@@ -901,7 +935,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	get_entvar(entity,var_origin, vOrigin);
 	
 	new pack_ent_chan = fill_entity_and_channel(entity, channel);
-	if (pack_ent_chan == 0 && !g_bUseOriginalSource)
+	if (pack_ent_chan == 0)
 	{
 		return HC_CONTINUE;
 	}
@@ -925,7 +959,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 		{
 			g_fFakeTime = get_gametime();
 				
-			for(new i = 1; i < MAX_PLAYERS + 1; i++)
+			for(new i = 1; i <= MaxClients; i++)
 			{
 				if (g_bPlayerConnected[i])
 				{
@@ -946,7 +980,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	new new_chan;
 	new new_ent;
 
-	if (g_bUseOriginalSource)
+	if (g_bUseOriginalSource || entity > MaxClients)
 	{
 		new_chan = channel;
 		new_ent = entity;
@@ -1051,12 +1085,12 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 		if (!g_bEnabledWarn)
 		{
 			g_bEnabledWarn = true;
-			log_amx("[WARNING] Anti-esp is disabled. Please check cvar 'antiesp_enabled'.");
+			log_amx("[WARNING] Anti-esp distance based is disabled. Please check cvar 'antiesp_enabled'.");
 		}
 		return FMRES_IGNORED;
 	}
 
-	if (invoker < 1 || invoker > MAX_PLAYERS || flags & FEV_HOSTONLY)
+	if (invoker < 1 || invoker > MaxClients || flags & FEV_HOSTONLY)
 		return FMRES_IGNORED;
 
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
@@ -1077,7 +1111,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 			
 			static bool:bIsVis[MAX_PLAYERS + 1];
 			
-			for(new p = 1; p < MAX_PLAYERS + 1; p++)
+			for(new p = 1; p <= MaxClients; p++)
 			{
 				bIsVis[p] = false;
 
@@ -1105,7 +1139,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 				}
 			}
 
-			for(new p = 1; p < MAX_PLAYERS + 1; p++)
+			for(new p = 1; p <= MaxClients; p++)
 			{
 				if (g_bPlayerConnected[p] || g_bPlayerBot[p])
 				{
@@ -1116,7 +1150,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 			engfunc(EngFunc_SetGroupMask, 0, GROUP_OP_AND);
 			engfunc(EngFunc_PlaybackEvent, flags, invoker, eventid, delay, origin, angles, fparam1, fparam2, iParam1, iParam2, bParam1, bParam2);
 
-			for(new p = 1; p < MAX_PLAYERS + 1; p++)
+			for(new p = 1; p <= MaxClients; p++)
 			{
 				if (g_bPlayerConnected[p] || g_bPlayerBot[p])
 				{
