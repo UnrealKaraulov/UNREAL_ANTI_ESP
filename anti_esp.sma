@@ -9,15 +9,16 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.29";
+new PLUGIN_VERSION[] = "3.30";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 3;
+new const config_version = 4;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
 #define GROUP_OP_IGNORE 2
 
+#define USE_OWN_FULLPACKED
 #define MAX_CHANNEL CHAN_STREAM
 
 new g_sSoundClassname[64] = "info_target";
@@ -44,7 +45,7 @@ new bool:g_bDebugDumpAllSounds = false;
 new bool:g_bUseUnsafeStreamChannel = false;
 
 new g_iEnabled = 1;
-//new g_iDebugCvar = 0;
+new g_iDebugCvar = 0;
 new g_bEnabledWarn = false;
 
 new g_iHardEntityUsageLimit = 32;
@@ -64,8 +65,13 @@ new g_iProtectStatus = 0;
 new Float:g_fMaxSoundDist = 1500.0;
 new Float:g_fRangeBasedDist = 101.0;
 new Float:g_fMinSoundVolume = 0.004;
-
 new Float:g_fFakeTime = 0.0;
+
+
+#if defined USE_OWN_FULLPACKED
+new Float:g_fPackedPlayers[MAX_PLAYERS + 1][MAX_PLAYERS + 1];
+#endif
+
 
 new Array:g_aPrecachedSounds;
 new Array:g_aOriginalSounds;
@@ -144,9 +150,9 @@ public plugin_init()
 
 	ArrayPushCell(g_aSoundEnts, iFirstSndEnt);
 
-	RegisterHookChain(RG_CBasePlayer_Spawn, "RG_CBasePlayer_Spawn_post", true);
-	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_pre", false);
-	register_forward(FM_EmitAmbientSound, "FM_EmitAmbientSound_pre", false)
+	RegisterHookChain(RG_CBasePlayer_Spawn, "RG_CBasePlayer_Spawn_post", .post = true);
+	RegisterHookChain(RH_SV_StartSound, "RH_SV_StartSound_pre", .post = false);
+	register_forward(FM_EmitAmbientSound, "FM_EmitAmbientSound_pre", ._post = false)
 	
 	for (new i = 0; i <= MaxClients; i++) 
 	{
@@ -155,7 +161,30 @@ public plugin_init()
 			g_iChannelReplacement[i][j] = 0;
 		}
 	}
+
+	#if defined USE_OWN_FULLPACKED
+	register_forward(FM_AddToFullPack, "AddToFullPack_Post", ._post = true);
+	#endif
 }
+
+#if defined USE_OWN_FULLPACKED
+public AddToFullPack_Post(es_handle, e, ent, host, hostflags, bool:player, pSet) 
+{
+	if (!player ||ent > MaxClients || host > MaxClients)
+	{
+		return FMRES_IGNORED;
+	}
+	g_fPackedPlayers[host][ent] = get_orig_retval() != 0 ? get_gametime() : 0.0;
+	return FMRES_IGNORED;
+}
+public Float:get_player_fullpacked_time(host, target)
+{
+	if (host > MaxClients || target > MaxClients)
+		return get_gametime();
+	//log_amx("host = %i, target = %i, packed = %f/%f", host, target, g_fPackedPlayers[host][target], g_fPackedPlayers[target][host]);
+	return g_fPackedPlayers[host][target];
+}
+#endif
 
 public fill_entity_and_channel(id, channel)
 {
@@ -396,7 +425,7 @@ public plugin_precache()
 	cfg_set_path("plugins/unreal_anti_esp.cfg");
 
 	bind_pcvar_num(register_cvar("antiesp_enabled", "1", FCVAR_SERVER, 1.0),g_iEnabled);
-	//bind_pcvar_num(register_cvar("antiesp_debug_val", "0", FCVAR_SERVER, 0.0),g_iDebugCvar);
+	bind_pcvar_num(register_cvar("antiesp_debug_val", "0", FCVAR_SERVER, 0.0),g_iDebugCvar);
 	
 	new tmp_cfgdir[512];
 	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
@@ -688,7 +717,7 @@ public plugin_precache()
 	log_amx("Config path: %s",g_sConfigPath);
 }
 
-rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL_NORM, Float:attn = ATTN_NORM, flags = 0, pitch = PITCH_NORM, emitFlags = 0, 
+rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
 	static Float:vecListener[3];
@@ -728,6 +757,15 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 				rh_emit_sound2(entity, iListener, channel, sample, vol, attn, flags, pitch, emitFlags, vecSource);
 				continue;
 			}
+
+
+			// SKIP DISTANCE BASED SOUND
+			if (g_iDebugCvar == 1)
+			{
+				set_entvar(entity, var_origin, vecSource);
+				rh_emit_sound2(entity, iListener, channel, sample, vol, attn, flags, pitch, emitFlags, vecSource);
+				continue;
+			}
 			
 			/* thanks s1lent for distance based sound volume calculation as in real client engine */
 			static Float:vecFakeSound[3];
@@ -741,6 +779,20 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			new Float:new_vol = flvol * (1.0 - (originalDistance * dist_mult)) / (1.0 - (xs_vec_len(direction) * dist_mult));
 			new Float:new_attn = attn * (new_vol/vol);
 
+			// ORIGINAL VOLUME
+			if (g_iDebugCvar == 2)
+			{
+				new_vol = vol;
+			}
+			
+			// ORIGINAL ATTN
+			if (g_iDebugCvar == 3)
+			{
+				new_attn = attn;
+			}
+			
+
+
 			/* bypass errors */
 			if (new_vol > flvol)
 				new_vol = flvol;
@@ -749,8 +801,8 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol = VOL
 			
 			if (new_attn < 0.001)
 				new_attn = 0.001;
-			else if (new_attn > 3.999)
-				new_attn = 3.999;
+			else if (new_attn > 3.95)
+				new_attn = 3.95;
 
 			set_entvar(entity, var_origin, vecFakeSound);
 			rh_emit_sound2(entity, iListener, channel, sample, new_vol, new_attn, flags, pitch, emitFlags, vecFakeSound);
@@ -998,6 +1050,9 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	{
 		vol_mult = 255.0 + random_float(0.0,2.0);
 		attenuation = attenuation + random_float(0.0,0.01);
+
+		if (attenuation > 3.95)
+			attenuation = 3.95;
 	}
 
 	new Float:new_vol = float(volume) / vol_mult;
@@ -1090,6 +1145,10 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
 		return FMRES_IGNORED;
 
+#if defined USE_OWN_FULLPACKED
+	new Float:fGameTime = get_gametime();
+#endif
+
 	for(new i = 0; i < sizeof(g_iEventIdx); i++)
 	{
 		if (g_iEventIdx[i] == eventid)
@@ -1099,7 +1158,6 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 
 #if REAPI_VERSION < 526324
 			static Float:vOrigin[3];
-
 			get_entvar(invoker,var_origin,vOrigin);
 #endif
 			
@@ -1115,8 +1173,10 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 					{
 						bIsVis[p] = true;
 #if REAPI_VERSION >= 526324
-						if (!rh_is_entity_fullpacked(invoker, p) && !fm_is_visible_re(p, vEndAim))
-#else 
+						if (!rh_is_entity_fullpacked(p, invoker) && !fm_is_visible_re(p, vEndAim))
+#elseif defined USE_OWN_FULLPACKED
+						if (fGameTime - get_player_fullpacked_time(p, invoker) > 0.1 && !fm_is_visible_re(p, vEndAim))
+#else
 						if (!fm_is_visible_re(p, vOrigin) && !fm_is_visible_re(p, vEndAim))
 #endif
 						{
