@@ -170,7 +170,7 @@ public plugin_init()
 #if defined USE_OWN_FULLPACKED
 public AddToFullPack_Post(es_handle, e, ent, host, hostflags, bool:player, pSet) 
 {
-	if (!player ||ent > MaxClients || host > MaxClients)
+	if (!player || ent > MaxClients || host > MaxClients)
 	{
 		return FMRES_IGNORED;
 	}
@@ -720,6 +720,28 @@ public plugin_precache()
 rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
+	// ADDITIONAL CHECKS
+	if (g_iDebugCvar == 4)
+	{
+		if (is_nullent(entity))
+		{
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null entity");
+			return;
+		}
+
+		if (is_nullent(recipient) || !is_user_connected(recipient))
+		{
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null recipient");
+			return;
+		}
+
+		if (iForceListener > 0 && (!is_user_connected(iForceListener) || is_nullent(iForceListener)))
+		{
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null forced listener");
+			return;
+		}
+	}
+
 	static Float:vecListener[3];
 	
 	for(new iListener = 1; iListener <= MaxClients; iListener++)
@@ -790,8 +812,6 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Floa
 			{
 				new_attn = attn;
 			}
-			
-
 
 			/* bypass errors */
 			if (new_vol > flvol)
@@ -823,6 +843,15 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Floa
 
 emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel, iTargetPlayer = 0)
 {
+	// ADDITIONAL CHECKS
+	if (g_iDebugCvar == 4)
+	{
+		if (iTargetPlayer > 0 && (!is_user_connected(iTargetPlayer) || is_nullent(iTargetPlayer)))
+		{
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null iTargetPlayer");
+			return;
+		}
+	}
 	if (iTargetPlayer > 0)
 	{
 		static Float:bakOrigin[3];
@@ -1129,6 +1158,17 @@ public RG_CBasePlayer_Spawn_post(const id)
 
 public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3], Float:angles[3], Float:fparam1, Float:fparam2, iParam1, iParam2, bParam1, bParam2)
 {
+	// ADDITIONAL CHECKS
+	if (g_iDebugCvar == 4)
+	{
+		if (invoker > 0 && (!is_user_connected(invoker) || is_nullent(invoker)))
+		{
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null invoker");
+			return FMRES_IGNORED;
+		}
+	}
+
+
 	if (g_iEnabled == 0)
 	{
 		if (!g_bEnabledWarn)
