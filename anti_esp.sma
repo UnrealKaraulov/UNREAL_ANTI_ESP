@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.30";
+new PLUGIN_VERSION[] = "3.31";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 4;
@@ -750,6 +750,11 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Floa
 		{
 			if (iForceListener > 0 && iListener != iForceListener)
 				continue;
+			else if (iForceListener <= 0 && recipient == iListener)
+			{
+				rh_emit_sound2(iListener, iListener, channel, sample, vol, attn, flags, pitch, emitFlags);
+				continue;
+			}
 
 			get_entvar(iListener, var_origin, vecListener);
 #if REAPI_VERSION > 524300
@@ -1184,9 +1189,10 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 
 	if (!g_bAntiespForBots && g_bPlayerBot[invoker])
 		return FMRES_IGNORED;
-
+#if REAPI_VERSION < 526324
 #if defined USE_OWN_FULLPACKED
 	new Float:fGameTime = get_gametime();
+#endif
 #endif
 
 	for(new i = 0; i < sizeof(g_iEventIdx); i++)
@@ -1213,7 +1219,7 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 					{
 						bIsVis[p] = true;
 #if REAPI_VERSION >= 526324
-						if (!rh_is_entity_fullpacked(p, invoker) && !fm_is_visible_re(p, vEndAim))
+						if (!rh_is_entity_fullpacked(p, invoker) && !CheckVisibilityInOrigin(p, vEndAim))
 #elseif defined USE_OWN_FULLPACKED
 						if (fGameTime - get_player_fullpacked_time(p, invoker) > 0.1 && !fm_is_visible_re(p, vEndAim))
 #else
