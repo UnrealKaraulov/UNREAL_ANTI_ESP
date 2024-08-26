@@ -9,7 +9,7 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.31";
+new PLUGIN_VERSION[] = "3.32";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new const config_version = 4;
@@ -717,7 +717,7 @@ public plugin_precache()
 	log_amx("Config path: %s",g_sConfigPath);
 }
 
-rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
+rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
 {
 	// ADDITIONAL CHECKS
@@ -752,7 +752,7 @@ rg_emit_sound_custom(entity, recipient, channel, const sample[], Float:vol, Floa
 				continue;
 			else if (iForceListener <= 0 && recipient == iListener)
 			{
-				rh_emit_sound2(iListener, iListener, channel, sample, vol, attn, flags, pitch, emitFlags);
+				rh_emit_sound2(iListener, iListener, origchan, sample, vol, attn, flags, pitch, emitFlags);
 				continue;
 			}
 
@@ -1099,7 +1099,7 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
-	rg_emit_sound_custom(new_ent, entity, new_chan, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
+	rg_emit_sound_custom(new_ent, entity, new_chan, channel, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
 	return HC_BREAK;
 }
 
