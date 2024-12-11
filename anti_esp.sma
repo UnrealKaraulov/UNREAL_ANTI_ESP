@@ -754,7 +754,7 @@ public plugin_precache()
 
 	log_amx("Config path: %s",g_sConfigPath);
 
-	
+	/*
 
 	for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 	{
@@ -762,7 +762,7 @@ public plugin_precache()
 		ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 		new Float:dur = ArrayGetCell(g_aSoundDurations, i);
 		log_amx("Duration of %s: %.2f seconds",orig_snd, dur);
-	}
+	}*/
 }
 
 rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
