@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.32";
+new PLUGIN_VERSION[] = "3.40";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 4;
+new const config_version = 5;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -29,18 +29,18 @@ new g_sConfigPath[512];
 new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bPlayerBot[MAX_PLAYERS + 1] = {false,...};
 new bool:g_bRepeatChannelMode = false;
-new bool:g_bGiveSomeRandom = true;
+new bool:g_bGiveSomeRandom = false;
 new bool:g_bReinstallNewSounds = false;
 new bool:g_bAntiespForBots = true;
 new bool:g_bCrackOldEspBox = true;
-new bool:g_bSendMissingSound = false;
+new bool:g_bSendMissingSound = true;
 new bool:g_bVolumeRangeBased = true;
 new bool:g_bUseOriginalSounds = false;
 new bool:g_bUseOriginalSource = false;
 #if REAPI_VERSION > 524300
 new bool:g_bSkipPAS = false;
 #endif
-new bool:g_bProcessAllSounds = true;
+new bool:g_bProcessAllSounds = false;
 new bool:g_bDebugDumpAllSounds = false;
 new bool:g_bUseUnsafeStreamChannel = false;
 
@@ -59,13 +59,13 @@ new g_iHideEventsMode = 1;
 new g_iFakeSoundMode = 2;
 new g_iProtectStatus = 0;
 
-/* from engine constants */
-#define SOUND_NOMINAL_CLIP_DIST 1000.0
-
 new Float:g_fMaxSoundDist = 1500.0;
-new Float:g_fRangeBasedDist = 101.0;
+new Float:g_fRangeBasedDist = 150.0;
 new Float:g_fMinSoundVolume = 0.004;
 new Float:g_fFakeTime = 0.0;
+
+/* from engine constants */
+#define SOUND_NOMINAL_CLIP_DIST 1000.0
 
 
 #if defined USE_OWN_FULLPACKED
@@ -76,6 +76,8 @@ new Float:g_fPackedPlayers[MAX_PLAYERS + 1][MAX_PLAYERS + 1];
 new Array:g_aPrecachedSounds;
 new Array:g_aOriginalSounds;
 new Array:g_aReplacedSounds;
+new Array:g_aSoundDurations;
+
 new Array:g_aSoundEnts;
 
 new const g_sGunsEvents[][] = {
@@ -94,13 +96,13 @@ new const Float:g_fGunAttns[] = {
 	1.6, 0.4, 0.4, 1.6, 0.64, 0.52, 0.52
 }
 
-new const g_sGunsSounds[][][] = {
+new const g_sGunsSounds[sizeof(g_sGunsEvents)][][] = {
 	{"weapons/ak47-1.wav", "weapons/ak47-1.wav"},
 	{"weapons/aug-1.wav", "weapons/aug-1.wav"},
-	{"weapons/awp1.wav", "weapons/awp1-1.wav"},
+	{"weapons/awp1.wav", "weapons/awp1.wav"},
 	{"weapons/deagle-1.wav", "weapons/deagle-1.wav"},
-	{"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
-	{"weapons/elite_fire.wav", "weapons/elite_fire-1.wav"},
+	{"weapons/elite_fire.wav", "weapons/elite_fire.wav"},
+	{"weapons/elite_fire.wav", "weapons/elite_fire.wav"},
 	{"weapons/famas-1.wav", "weapons/famas-1.wav"},
 	{"weapons/fiveseven-1.wav", "weapons/fiveseven-1.wav"},
 	{"weapons/g3sg1-1.wav", "weapons/g3sg1-1.wav"},
@@ -121,6 +123,8 @@ new const g_sGunsSounds[][][] = {
 	{"weapons/usp_unsil-1.wav", "weapons/usp1.wav"},
 	{"weapons/xm1014-1.wav","weapons/xm1014-1.wav"}
 };
+
+new Float:g_sGunDurations[sizeof(g_sGunsEvents)][2];
 
 new g_iEventIdx[sizeof(g_sGunsEvents)] = {0,...};
 new g_iChannelReplacement[MAX_PLAYERS + 1][MAX_CHANNEL + 1];
@@ -165,6 +169,19 @@ public plugin_init()
 	#if defined USE_OWN_FULLPACKED
 	register_forward(FM_AddToFullPack, "AddToFullPack_Post", ._post = true);
 	#endif
+
+	new path[128];
+	for (new i = 0; i < sizeof(g_sGunsSounds); i++) 
+	{
+		formatex(path, charsmax(path), "sound/%s", g_sGunsSounds[i][0]);
+		g_sGunDurations[i][0] = GetWavDuration(path);
+		
+		formatex(path, charsmax(path), "sound/%s", g_sGunsSounds[i][1]);
+		g_sGunDurations[i][1] = GetWavDuration(path);
+
+		/*log_amx("Duration of %s: %.2f seconds", g_sGunsSounds[i][0], g_sGunDurations[i][0]);
+		log_amx("Duration of %s: %.2f seconds", g_sGunsSounds[i][1], g_sGunDurations[i][1]);*/
+	}
 }
 
 #if defined USE_OWN_FULLPACKED
@@ -308,13 +325,18 @@ public InitDefaultSoundArray()
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade3.wav");
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade4.wav");
 	
+	new tmp_path[128];
+
 	if (g_bUseOriginalSounds && !g_bProcessAllSounds)
 	{
 		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 		{
 			new orig_snd[64];
-			ArrayGetString(g_aOriginalSounds,i,orig_snd,charsmax(orig_snd));
+			ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 			ArrayPushString(g_aReplacedSounds, orig_snd);
+			
+			formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
+			ArrayPushCell(g_aSoundDurations, GetWavDuration(tmp_path));
 		}
 	}
 	else 
@@ -325,16 +347,26 @@ public InitDefaultSoundArray()
 		{
 			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 			{
+				new orig_snd[64];
+				ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 				RandomSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
 				ArrayPushString(g_aReplacedSounds, rnd_str);
+					
+				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
+				ArrayPushCell(g_aSoundDurations, GetWavDuration(tmp_path));
 			}
 		}
 		else 
 		{
 			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 			{
+				new orig_snd[64];
+				ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 				StandSoundPostfix("pl_shell/",rnd_str,charsmax(rnd_str));
 				ArrayPushString(g_aReplacedSounds, rnd_str);
+				
+				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
+				ArrayPushCell(g_aSoundDurations, GetWavDuration(tmp_path));
 			}
 		}
 	}
@@ -413,6 +445,7 @@ public plugin_end()
 	ArrayDestroy(g_aReplacedSounds);
 	ArrayDestroy(g_aPrecachedSounds);
 	ArrayDestroy(g_aSoundEnts);
+	ArrayDestroy(g_aSoundDurations);
 
 	if (g_iProtectStatus == 1)
 	{
@@ -454,6 +487,7 @@ public plugin_precache()
 	g_aOriginalSounds = ArrayCreate(64);
 	g_aReplacedSounds = ArrayCreate(64);
 	g_aPrecachedSounds = ArrayCreate();
+	g_aSoundDurations = ArrayCreate();
 	g_aSoundEnts = ArrayCreate();
 
 	new cur_config_version = 0;
@@ -559,8 +593,12 @@ public plugin_precache()
 				formatex(tmp_arg,charsmax(tmp_arg),"sound_%i_replace", i + 1);
 				cfg_read_str("sounds",tmp_arg,tmp_sound_dest,tmp_sound_dest,charsmax(tmp_sound_dest));
 			}
+
 			ArrayPushString(g_aOriginalSounds,tmp_sound);
 			ArrayPushString(g_aReplacedSounds,tmp_sound_dest);
+			
+			formatex(tmp_arg,charsmax(tmp_arg),"sound/%s",tmp_sound);
+			ArrayPushCell(g_aSoundDurations, GetWavDuration(tmp_arg));
 
 			if (!sound_exists(tmp_sound_dest))
 			{
@@ -687,15 +725,15 @@ public plugin_precache()
 		log_amx("Warning! Dumping all sounds!");
 	}
 
-	if (g_fRangeBasedDist < 32.0)
+	if (g_fRangeBasedDist < 48.0)
 	{
 		log_error(AMX_ERR_GENERAL, "Warning! Range based distance too small! Please check volume_range_dist in cfg.");
-		g_fRangeBasedDist = 32.0;
+		g_fRangeBasedDist = 48.0;
 	}
-	else if (g_fRangeBasedDist > 512.0)
+	else if (g_fRangeBasedDist > 480.0)
 	{
 		log_error(AMX_ERR_GENERAL, "Warning! Range based distance too big! Please check volume_range_dist in cfg.");
-		g_fRangeBasedDist = 512.0;
+		g_fRangeBasedDist = 480.0;
 	}
 
 	if (g_bUseOriginalSounds)
@@ -715,10 +753,20 @@ public plugin_precache()
 	}
 
 	log_amx("Config path: %s",g_sConfigPath);
+
+	
+
+	for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
+	{
+		new orig_snd[64];
+		ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
+		new Float:dur = ArrayGetCell(g_aSoundDurations, i);
+		log_amx("Duration of %s: %.2f seconds",orig_snd, dur);
+	}
 }
 
 rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float:vol, Float:attn, flags, pitch, emitFlags, 
-					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0)
+					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0, Float:distMult = 1.0)
 {
 	// ADDITIONAL CHECKS
 	if (g_iDebugCvar == 4)
@@ -743,6 +791,12 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 	}
 
 	static Float:vecListener[3];
+
+	if (distMult > 5.0)
+		distMult = 5.0;
+	
+	if (distMult < 0.2)
+		distMult = 0.2;
 	
 	for(new iListener = 1; iListener <= MaxClients; iListener++)
 	{
@@ -772,13 +826,13 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 			if (originalDistance > g_fMaxSoundDist)
 				continue;
 
-			new Float:fSomeRandom = 0.0;
+			new Float:fSoundDistance = g_fRangeBasedDist * distMult;
 			if (g_bGiveSomeRandom)
 			{
-				fSomeRandom = random_float(g_fRangeBasedDist / 1.25, g_fRangeBasedDist * 1.5);
+				fSoundDistance = random_float(fSoundDistance / 1.2, fSoundDistance * 1.2);
 			}
 
-			if (!g_bVolumeRangeBased || originalDistance < g_fRangeBasedDist + fSomeRandom)
+			if (!g_bVolumeRangeBased || originalDistance < fSoundDistance)
 			{
 				set_entvar(entity, var_origin, vecSource);
 				rh_emit_sound2(entity, iListener, channel, sample, vol, attn, flags, pitch, emitFlags, vecSource);
@@ -797,7 +851,7 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 			/* thanks s1lent for distance based sound volume calculation as in real client engine */
 			static Float:vecFakeSound[3];
 
-			xs_vec_mul_scalar(direction, g_fRangeBasedDist + fSomeRandom, vecFakeSound);
+			xs_vec_mul_scalar(direction, fSoundDistance, vecFakeSound);
 			xs_vec_add(vecListener, vecFakeSound, vecFakeSound);
 			xs_vec_sub(vecFakeSound, vecListener, direction);
 
@@ -938,7 +992,7 @@ public FM_EmitAmbientSound_pre(const entity, const Float:Origin[3], const sample
 	return FMRES_IGNORED;
 }
 
-public RH_SV_StartSound_pre(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
+public RH_SV_StartSound_process(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch, bool:IsWeapon, Float:distMult)
 {
 	static tmp_sample[64];
 	
@@ -989,8 +1043,9 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	{
 		ArrayGetString(g_aReplacedSounds, snd, tmp_sample, charsmax(tmp_sample));
 		SetHookChainArg(4,ATYPE_STRING,tmp_sample)
+		distMult = ArrayGetCell(g_aSoundDurations, snd);
 	}
-	else if (!g_bProcessAllSounds && recipients < 100)
+	else if (!g_bProcessAllSounds && !IsWeapon)
 	{
 		return HC_CONTINUE;
 	}
@@ -1099,8 +1154,13 @@ public RH_SV_StartSound_pre(const recipients, const entity, const channel, const
 	if (g_iProtectStatus == 1)
 		g_iProtectStatus = 2;
 
-	rg_emit_sound_custom(new_ent, entity, new_chan, channel, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, recipients > 100 ? recipients - 100 : 0);
+	rg_emit_sound_custom(new_ent, entity, new_chan, channel, snd < 0 ? sample : tmp_sample, new_vol, attenuation, fFlags, pitch, SND_EMIT2_NOPAS, vOrigin, recipients == 0, IsWeapon ? recipients : 0);
 	return HC_BREAK;
+}
+
+public RH_SV_StartSound_pre(const recipients, const entity, const channel, const sample[], const volume, Float:attenuation, const fFlags, const pitch)
+{
+	return RH_SV_StartSound_process(recipients,entity,channel,sample,volume,attenuation, fFlags, pitch, false, 1.0);
 }
 
 public send_bad_sound(id)
@@ -1229,10 +1289,9 @@ public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3
 							bIsVis[p] = false;
 							if (g_iHideEventsMode == 1)
 							{
-								RH_SV_StartSound_pre(100 + p, invoker, CHAN_WEAPON, 
-								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? g_sGunsSounds[i][1] : g_sGunsSounds[i][0]
-								, 255,
-								(i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? 1.4 : g_fGunAttns[i], 0, 94 + random(16));
+								new sndType = (i == 23 && bParam2 & 1) || i == 21 || (i == 14 && bParam1 & 1) ? 1 : 0;
+								RH_SV_StartSound_process(p, invoker, CHAN_WEAPON, g_sGunsSounds[i][sndType]
+								, 255, sndType == 1 ? 1.4 : g_fGunAttns[i], 0, 94 + random(16), true, g_sGunDurations[i][sndType]);
 							}
 						}
 					}
@@ -1361,6 +1420,30 @@ stock CreateSilentWav(const path[],Float:duration = 1.0)
 		log_error(AMX_ERR_MEMACCESS, "Failed to create WAV file: %s", path);
 		set_fail_state("Failed to create WAV file.");
 	}
+}
+
+stock Float:GetWavDuration(const path[]) 
+{
+    new file = fopen(path, "rb", true, "GAMECONFIG");
+    if (!file) {
+        log_error(AMX_ERR_MEMACCESS, "Failed to open WAV file: %s", path);
+        return -1.0;
+    }
+
+    new sampleRate;
+    new dataSize;
+    new bitsPerSample;
+
+    fseek(file, 24, SEEK_SET);
+    fread(file, sampleRate, 4);
+    fseek(file, 6, SEEK_CUR);
+    fread(file, bitsPerSample, 2);
+    fseek(file, 4, SEEK_CUR);
+    fread(file, dataSize, 4);
+    fclose(file);
+
+    new Float:duration = float(dataSize) / float(sampleRate * NUM_CHANNELS * (bitsPerSample / 8));
+    return duration;
 }
 
 new const g_CharSet[] = "abcdefghijklmnopqrstuvwxyz";
