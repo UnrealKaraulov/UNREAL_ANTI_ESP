@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.41";
+new PLUGIN_VERSION[] = "3.42";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 6;
+new const config_version = 7;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -360,7 +360,7 @@ public InitDefaultSoundArray()
 				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
 				ArrayPushCell(g_aSoundsDistMultiplier, GetWavDuration(tmp_path) * DIST_MULTIPLIER_CONST);
 				
-				RandomSoundPostfix("pl_shelldie1.wav/",rnd_str,charsmax(rnd_str));
+				RandomSoundPostfix("pl_shell/die1/",rnd_str,charsmax(rnd_str));
 				ArrayPushString(g_aReplacedSounds, rnd_str);
 			}
 		}
@@ -373,7 +373,7 @@ public InitDefaultSoundArray()
 				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
 				ArrayPushCell(g_aSoundsDistMultiplier, GetWavDuration(tmp_path) * DIST_MULTIPLIER_CONST);
 				
-				StandSoundPostfix("pl_shelldie1.wav/",rnd_str,charsmax(rnd_str));
+				StandSoundPostfix("pl_shell/die1/",rnd_str,charsmax(rnd_str));
 				ArrayPushString(g_aReplacedSounds, rnd_str);				
 			}
 		}
@@ -577,8 +577,10 @@ public plugin_precache()
 			g_iReplaceSounds = ArraySize(g_aOriginalSounds);
 			cfg_write_int("sounds","sounds",g_iReplaceSounds);
 			
-			if (!dir_exists("sound/pl_shelldie1.wav",true))
-				mkdir("sound/pl_shelldie1.wav", _, true, "GAMECONFIG");
+			if (!dir_exists("sound/pl_shell",true))
+				mkdir("sound/pl_shell", _, true, "GAMECONFIG");
+			if (!dir_exists("sound/pl_shell/die1",true))
+				mkdir("sound/pl_shell/die1", _, true, "GAMECONFIG");
 		}
 
 		static tmp_sound_dest[64];
