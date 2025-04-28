@@ -1,4 +1,4 @@
-# UNREAL ANTI-ESP SYSTEM
+# ANTI-ESP плагин
 
 ## Выбор языка
 - [English Version](README.md)
