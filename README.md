@@ -1,7 +1,7 @@
 # UNREAL ANTI-ESP SYSTEM
 
 ## Language Selection
-- [Русская версия](README_ru.md)
+- [Русская версия](README_RU.md)
 
 ---
 
