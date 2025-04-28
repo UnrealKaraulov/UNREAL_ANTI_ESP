@@ -16,8 +16,8 @@
 #### Key Features:
 - Sound file name obfuscation
 - Decoy sound emission system
-- Distance-based volume control (Anti-ESP protection, 2024 update)
-- Weapon event concealment (New 2024 security layer)
+- Distance-based volume control (Anti-ESP protection, New 2024 security layer)
+- Weapon event protection
 
 ---
 
