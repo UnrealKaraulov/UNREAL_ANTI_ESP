@@ -1,12 +1,26 @@
-# UNREAL_ANTI_ESP
+# UNREAL ANTI-ESP SYSTEM
 
-1. Compile anti_esp.sma.
-2. Install plugin to plugins.ini
-3. Restart
-4. Upload sounds to FastDL
+## Language Selection
+- [Русская версия](README_ru.md)
 
-Features:
-1. Replaces sounds to fake names
-2. Emit fake sounds
-3. Volume distance based anti esp [New 2024 year protection level!]
-4. Hide weapon events [New 2024 year protection level!]
+---
+
+### English Version
+
+#### Installation Instructions:
+1. Compile the `anti_esp.sma` source file
+2. Add the plugin to `plugins.ini` configuration
+3. Restart the game server
+4. Upload sound files to FastDL server
+
+#### Key Features:
+- Sound file name obfuscation
+- Decoy sound emission system
+- Distance-based volume control (Anti-ESP protection, 2024 update)
+- Weapon event concealment (New 2024 security layer)
+
+---
+
+## Technical Support
+Contact the developer:  
+[Telegram](https://t.me/karaul0v)
