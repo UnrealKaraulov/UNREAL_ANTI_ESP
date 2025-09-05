@@ -1,4 +1,4 @@
-[🇷🇺 Читать на русском](README_RU.md)
+[Russian](README_RU.md)
 
 # 🚫 UNREAL ANTI‑ESP PLUGIN v3.42
 
