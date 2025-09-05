@@ -11,7 +11,7 @@
 1. Compile the `anti_esp.sma` source file
 2. Add the plugin to `plugins.ini` configuration
 3. Restart the game server
-4. Upload sound files to FastDL server
+4. Upload sound files to FastDL server (All sounds auto generated after server first start!)
 
 #### Key Features:
 - Sound file name obfuscation
