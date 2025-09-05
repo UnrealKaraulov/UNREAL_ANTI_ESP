@@ -1,3 +1,5 @@
+[🇬🇧 Read in English](README.md)
+
 # 🚫 UNREAL ANTI‑ESP PLUGIN v3.42
 
 Многоуровневая защита от Sound ESP и wallhack‑читов для игровых серверов CS 1.6 / HLDS на базе **AMX Mod X + ReAPI**.  
