@@ -1,3 +1,5 @@
+[🇷🇺 Читать на русском](https://github.com/UnrealKaraulov/UNREAL_ANTI_ESP/blob/main/README_RU.md
+
 # 🚫 UNREAL ANTI‑ESP PLUGIN v3.42
 
 Multi‑layer protection against Sound ESP and wallhack cheats for CS 1.6 / HLDS servers based on **AMX Mod X + ReAPI**.  
