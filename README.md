@@ -1,4 +1,4 @@
-[🇷🇺 Читать на русском](https://github.com/UnrealKaraulov/UNREAL_ANTI_ESP/blob/main/README_RU.md
+[🇷🇺 Читать на русском](README_RU.md)
 
 # 🚫 UNREAL ANTI‑ESP PLUGIN v3.42
 
