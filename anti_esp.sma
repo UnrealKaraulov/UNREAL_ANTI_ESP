@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.42";
+new PLUGIN_VERSION[] = "3.43";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 7;
+new const config_version = 8;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -28,7 +28,7 @@ new const config_version = 7;
 
 new g_sSoundClassname[64] = "info_target";
 new g_sFakePath[64] = "player/pl_step6.wav";
-new g_sMissingPath[64] = "player/pl_step0.wav";
+new g_sMissingPath[64] = "player/pl_step40.wav";
 new g_sConfigPath[512];
 
 new bool:g_bPlayerConnected[MAX_PLAYERS + 1] = {false,...};
@@ -40,6 +40,7 @@ new bool:g_bAntiespForBots = true;
 new bool:g_bCrackOldEspBox = true;
 new bool:g_bSendMissingSound = true;
 new bool:g_bVolumeRangeBased = true;
+new bool:g_bValidateEntities = true; 
 new bool:g_bUseOriginalSounds = false;
 new bool:g_bUseOriginalSource = false;
 #if REAPI_VERSION > 524300
@@ -175,7 +176,7 @@ public plugin_init()
 	register_forward(FM_AddToFullPack, "AddToFullPack_Post", ._post = true);
 	#endif
 
-	new path[128];
+	static path[128];
 	for (new i = 0; i < sizeof(g_sGunsSounds); i++) 
 	{
 		formatex(path, charsmax(path), "sound/%s", g_sGunsSounds[i][0]);
@@ -333,13 +334,13 @@ public InitDefaultSoundArray()
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade3.wav");
 	ArrayPushString(g_aOriginalSounds, "player/pl_wade4.wav");
 	
-	new tmp_path[128];
+	static tmp_path[128];
 
 	if (g_bUseOriginalSounds && !g_bProcessAllSounds)
 	{
 		for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 		{
-			new orig_snd[64];
+			static orig_snd[64];
 			ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 			ArrayPushString(g_aReplacedSounds, orig_snd);
 			
@@ -349,13 +350,13 @@ public InitDefaultSoundArray()
 	}
 	else 
 	{
-		new rnd_str[64];
+		static rnd_str[64];
 
 		if (g_bReinstallNewSounds)
 		{
 			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 			{
-				new orig_snd[64];
+				static orig_snd[64];
 				ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
 				ArrayPushCell(g_aSoundsDistMultiplier, GetWavDuration(tmp_path) * DIST_MULTIPLIER_CONST);
@@ -368,7 +369,7 @@ public InitDefaultSoundArray()
 		{
 			for(new i = 0; i < ArraySize(g_aOriginalSounds); i++)
 			{
-				new orig_snd[64];
+				static orig_snd[64];
 				ArrayGetString(g_aOriginalSounds, i, orig_snd,charsmax(orig_snd));
 				formatex(tmp_path,charsmax(tmp_path),"sound/%s",orig_snd);
 				ArrayPushCell(g_aSoundsDistMultiplier, GetWavDuration(tmp_path) * DIST_MULTIPLIER_CONST);
@@ -406,7 +407,11 @@ public client_disconnected(id)
 {
 	g_bPlayerConnected[id] = false;
 	g_bPlayerBot[id] = false;
-	
+	// clean chan replace for empty player?
+	for (new j = 0; j <= MAX_CHANNEL; j++) 
+	{
+		g_iChannelReplacement[id][j] = 0;
+	}
 	if (task_exists(id))
 	{
 		remove_task(id);
@@ -468,7 +473,7 @@ public plugin_precache()
 	bind_pcvar_num(register_cvar("antiesp_enabled", "1", FCVAR_SERVER, 1.0),g_iEnabled);
 	bind_pcvar_num(register_cvar("antiesp_debug_val", "0", FCVAR_SERVER, 0.0),g_iDebugCvar);
 	
-	new tmp_cfgdir[512];
+	static tmp_cfgdir[512];
 	cfg_get_path(tmp_cfgdir,charsmax(tmp_cfgdir));
 	trim_to_dir(tmp_cfgdir);
 
@@ -527,11 +532,13 @@ public plugin_precache()
 		g_iMaxEntsForSounds = 1; // one default
 	
 	cfg_read_bool("general","repeat_channel_mode", g_bRepeatChannelMode, g_bRepeatChannelMode);
-	cfg_read_bool("general","use_unsafe_stream_channel", g_bUseUnsafeStreamChannel, g_bUseUnsafeStreamChannel);
+	// decrease entity num, but STREAM can't be stopped!
+	cfg_read_bool("general","use_unsafe_stream_channel", g_bUseUnsafeStreamChannel, g_bUseUnsafeStreamChannel); 
 	cfg_read_bool("general","more_random_mode", g_bGiveSomeRandom, g_bGiveSomeRandom);
 	cfg_read_bool("general","reinstall_with_new_sounds", g_bReinstallNewSounds, g_bReinstallNewSounds);
 	cfg_read_bool("general","crack_old_esp_box", g_bCrackOldEspBox, g_bCrackOldEspBox);
 	cfg_read_bool("general","volume_range_based", g_bVolumeRangeBased, g_bVolumeRangeBased);
+	cfg_read_bool("general","validate_entities", g_bValidateEntities, g_bValidateEntities);
 	cfg_read_flt("general","volume_range_dist", g_fRangeBasedDist, g_fRangeBasedDist);
 	cfg_read_flt("general","cut_off_sound_dist", g_fMaxSoundDist * 1.5, g_fMaxSoundDist);
 	cfg_read_flt("general","cut_off_sound_vol", g_fMinSoundVolume, g_fMinSoundVolume);
@@ -713,6 +720,7 @@ public plugin_precache()
 	log_amx(" g_bCrackOldEspBox = %i (cracks old esp box)", g_bCrackOldEspBox);
 	log_amx(" g_bAntiespForBots = %i (enable antiesp for bots)", g_bAntiespForBots);
 	log_amx(" g_bVolumeRangeBased = %i (uses volume based on distance)", g_bVolumeRangeBased);
+	log_amx(" g_bValidateEntities = %i (check entity is valid)", g_bValidateEntities);
 	log_amx(" g_fRangeBasedDist = %f (distance for volume based mode)", g_fRangeBasedDist);
 	log_amx(" g_fMaxSoundDist = %f (max sound hear distance)", g_fMaxSoundDist);
 	log_amx(" g_fMinSoundVolume = %f (min sound hear volume)", g_fMinSoundVolume);
@@ -778,23 +786,23 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 					Float:vecSource[3] = {0.0,0.0,0.0}, bool:bForAll = false, iForceListener = 0, Float:distMult = 1.0)
 {
 	// ADDITIONAL CHECKS
-	if (g_iDebugCvar == 4)
+	if (g_bValidateEntities)
 	{
 		if (is_nullent(entity))
 		{
-			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null entity");
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null entity %i [sample:%s]", entity, sample);
 			return;
 		}
 
 		if (is_nullent(recipient) || !is_user_connected(recipient))
 		{
-			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null recipient");
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null recipient %i [sample:%s]", recipient, sample);
 			return;
 		}
 
 		if (iForceListener > 0 && (!is_user_connected(iForceListener) || is_nullent(iForceListener)))
 		{
-			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null forced listener");
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null forced listener %i [sample:%s]", iForceListener, sample);
 			return;
 		}
 	}
@@ -913,11 +921,11 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 emit_fake_sound(Float:origin[3], Float:volume, Float:attenuation, fFlags, pitch, channel, iTargetPlayer = 0)
 {
 	// ADDITIONAL CHECKS
-	if (g_iDebugCvar == 4)
+	if (g_bValidateEntities)
 	{
 		if (iTargetPlayer > 0 && (!is_user_connected(iTargetPlayer) || is_nullent(iTargetPlayer)))
 		{
-			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null iTargetPlayer");
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null iTargetPlayer %i", iTargetPlayer);
 			return;
 		}
 	}
@@ -1122,8 +1130,8 @@ public anti_esp_process_sound(const recipients, const entity, const channel, con
 		}
 	}
 
-	new new_chan;
-	new new_ent;
+	static new_chan;
+	static new_ent;
 
 	if (pack_ent_chan == 0)
 	{
@@ -1234,15 +1242,14 @@ public RG_CBasePlayer_Spawn_post(const id)
 public FM_PlaybackEvent_pre(flags, invoker, eventid, Float:delay, Float:origin[3], Float:angles[3], Float:fparam1, Float:fparam2, iParam1, iParam2, bParam1, bParam2)
 {
 	// ADDITIONAL CHECKS
-	if (g_iDebugCvar == 4)
+	if (g_bValidateEntities)
 	{
 		if (invoker > 0 && (!is_user_connected(invoker) || is_nullent(invoker)))
 		{
-			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null invoker");
+			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null invoker %i", invoker);
 			return FMRES_IGNORED;
 		}
 	}
-
 
 	if (g_iEnabled == 0)
 	{
@@ -1384,7 +1391,7 @@ stock MoveSoundWithRandomTail(const path[], const dest[])
 	fclose(file);
 	// add fake chunk
 	// chunk "RAND" + chunk_size
-	new fake_chunk_header[5];
+	static fake_chunk_header[5];
 	RandomStringUpper(fake_chunk_header,4);
 	fwrite_blocks(file_dest, fake_chunk_header, 4, BLOCK_BYTE);
 	fwrite(file_dest, rnd_tail, BLOCK_INT);
@@ -1471,12 +1478,11 @@ new const g_CharSetLower[] = "abcdefghijklmnopqrstuvwxyz";
 
 stock RandomStringLower(dest[], length)
 {
-	new i, randIndex;
 	new charsetLength = strlen(g_CharSetLower);
 
-	for (i = 0; i < length; i++)
+	for (new i = 0; i < length; i++)
 	{
-		randIndex = random(charsetLength);
+		new randIndex = random(charsetLength);
 		dest[i] = g_CharSetLower[randIndex];
 	}
 
@@ -1487,12 +1493,11 @@ new const g_CharSetUpper[] = "ABCDFGHIJKMNOPQRSTUVWXYZ";
 
 stock RandomStringUpper(dest[], length)
 {
-    new i, randIndex;
     new charsetLength = strlen(g_CharSetUpper);
 
-    for (i = 0; i < length; i++)
+    for (new i = 0; i < length; i++)
     {
-        randIndex = random(charsetLength);
+        new randIndex = random(charsetLength);
         dest[i] = g_CharSetUpper[randIndex];
     }
 

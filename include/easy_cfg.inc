@@ -62,15 +62,35 @@ stock bool:cfg_set_path(const path[], max_key_val = -1)
 		}
 		else 
 		{
+			new szDir[512];
+			copy(szDir,charsmax(szDir),szFile);
+			cfg_trim_to_dir(szDir);
+			if (szDir[0] != EOS)
+			{
+				if (!dir_exists(szDir))
+				{
+					if (mkdir(szDir) < 0)
+					{
+						log_error(AMX_ERR_NOTFOUND, "Can't create %s dir",szDir);
+						return false;
+					}
+					else 
+					{
+						hFile = fopen(szFile, "wb");
+						if (hFile)
+						{
+							fclose(hFile);
+							return true;
+						}
+					}
+				}
+			}
 			log_error(AMX_ERR_NONE, "[EASYCFG] NO ACCESS TO %s!!!", szFile);
 			return false;
 		}
 	}
-	else 
-	{
-		fclose(hFile);
-		return true;
-	}
+	fclose(hFile);
+	return true;
 }
 
 stock bool:cfg_get_path(path[], const len)
@@ -565,6 +585,20 @@ stock cut_float_better(str[])
 			{
 				break;
 			}
+		}
+	}
+}
+
+stock cfg_trim_to_dir(path[])
+{
+	new len = strlen(path);
+	len--;
+	for(; len >= 0; len--)
+	{
+		if(path[len] == '/' || path[len] == '\\')
+		{
+			path[len] = EOS;
+			break;
 		}
 	}
 }
