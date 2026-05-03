@@ -9,10 +9,10 @@
 #pragma ctrlchar '\'
 
 new PLUGIN_NAME[] = "UNREAL ANTI-ESP";
-new PLUGIN_VERSION[] = "3.43";
+new PLUGIN_VERSION[] = "3.44";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
-new const config_version = 8;
+new const config_version = 9;
 
 #define GROUP_OP_AND  0
 #define GROUP_OP_NAND 1
@@ -794,7 +794,7 @@ rg_emit_sound_custom(entity, recipient, channel, origchan, const sample[], Float
 			return;
 		}
 
-		if (is_nullent(recipient) || !is_user_connected(recipient))
+		if (recipient > 0 && is_nullent(recipient) || !is_user_connected(recipient))
 		{
 			log_error(AMX_ERR_MEMACCESS, "Can't emit sound to null recipient %i [sample:%s]", recipient, sample);
 			return;
